@@ -94,3 +94,30 @@ get_root_position_dependent_species_overlap_scores = function(phy, nslots) {
     species_overlap_scores = so_score[order(as.integer(names(so_score)))]
     return(species_overlap_scores)
 }
+
+is_same_root = function(phy1, phy2) {
+    if (! is.rooted(phy1)) {
+        stop('phy1 is unrooted.')
+    }
+    if (! is.rooted(phy2)) {
+        stop('phy2 is unrooted.')
+    }
+    if (! identical(sort(phy1$tip.label), sort(phy2$tip.label))) {
+        stop('phy1 and phy2 have different sets of leaves.')
+    }
+    phys = list(phy1, phy2)
+    leaf_names = vector(mode='list', length(phys))
+    for (i in 1:length(phys)) {
+        children = get_children_num(phys[[i]], get_root_num(phys[[i]]))
+        leaf_names[[i]] = vector(mode='list', length(children))
+        leaf_names[[i]][[1]] = get_tip_labels(phys[[i]], children[1])
+        leaf_names[[i]][[2]] = get_tip_labels(phys[[i]], children[2])
+    }
+    if (identical(sort(leaf_names[[1]][[1]]), sort(leaf_names[[2]][[1]]))) {
+        return(TRUE)
+    } else if (identical(sort(leaf_names[[1]][[1]]), sort(leaf_names[[2]][[2]]))) {
+        return(TRUE)
+    } else {
+        return(FALSE)
+    }
+}
