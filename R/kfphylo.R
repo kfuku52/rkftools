@@ -333,3 +333,52 @@ MAD <- function(unrooted_newick,output_mode){
     }
   }
 }
+
+transfer_node_labels = function(phy_from, phy_to) {
+    for (t in 1:length(phy_to$node.label)) {
+        to_node = phy_to$node.label[t]
+        to_clade = extract.clade(phy=phy_to, node=to_node, root.edge = 0, interactive = FALSE)
+        to_leaves = to_clade$tip.label
+        for (f in 1:length(phy_from$node.label)) {
+            from_node = phy_from$node.label[f]
+            from_clade = extract.clade(phy=phy_from, node=from_node, root.edge = 0, interactive = FALSE)
+            from_leaves = from_clade$tip.label
+            if (setequal(to_leaves, from_leaves)) {
+                phy_to$node.label[t] = from_node
+                break
+            }
+        }
+    }
+    return(phy_to)
+}
+
+read_notung_parsable = function(file, mode='D') {
+    options(stringsAsFactors=FALSE)
+    if (mode=='D') {
+        f = file(file,"r")
+        event_lines = c()
+        repeat {
+             str = readLines(con=f,1)
+             if (length(str)==0) {
+                 break
+             }
+             event_lines = c(event_lines, str)
+        }
+        dup_positions = grep("^#D", event_lines)
+        if (length(dup_positions)>0) {
+            dup_lines = event_lines[dup_positions]
+            dup_items = strsplit(dup_lines[2:length(dup_lines)], "\\s")
+            event_items = strsplit(dup_lines[2:length(dup_lines)], "\\s")
+            df = data.frame(t(data.frame(dup_items)))
+            rownames(df) = NULL
+            colnames(df) = c('event', 'gn_node', 'lower_sp_node', 'upper_sp_node')
+            df$event = 'dup'
+        } else {
+            df = data.frame()
+        }
+    } else {
+        cat('mode', mode, 'is not supported.')
+        df = data.frame()
+    }
+    return(df)
+}
