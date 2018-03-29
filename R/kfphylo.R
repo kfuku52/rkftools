@@ -82,7 +82,8 @@ get_root_position_dependent_species_overlap_scores = function(phy, nslots) {
     species_overlap_scores = vector(mode="numeric", nrow(phy$edge))
     exp_funs = c('reroot', "get_species_overlap_score", "get_duplication_confidence_score",
                 "get_children_num", "get_tip_labels")
-    cluster = makeCluster(nslots, 'PSOCK', outfile='')
+    num_parallel = min(nslots, nrow(phy$edge))
+    cluster = makeCluster(num_parallel, 'PSOCK', outfile='')
     registerDoParallel(cluster)
     so_score = foreach (i = 1:nrow(phy$edge), .combine=c, .export=exp_funs) %dopar% {
         rt = reroot(tree=phy, node.number=phy$edge[i,2])
@@ -365,7 +366,7 @@ read_notung_parsable = function(file, mode='D') {
              event_lines = c(event_lines, str)
         }
         dup_positions = grep("^#D", event_lines)
-        if (length(dup_positions)>0) {
+        if (length(dup_positions)>1) {
             dup_lines = event_lines[dup_positions]
             dup_items = strsplit(dup_lines[2:length(dup_lines)], "\\s")
             event_items = strsplit(dup_lines[2:length(dup_lines)], "\\s")
