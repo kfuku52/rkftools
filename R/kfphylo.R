@@ -29,7 +29,6 @@ get_children_num = function(phy, node_num) {
 }
 
 get_tip_labels = function(phy, node_num, out=NULL) {
-    options(expressions=20000)
     if (is.null(out)) {
         out = list()
         out[['nn']] = c(node_num)
