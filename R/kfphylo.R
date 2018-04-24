@@ -409,3 +409,12 @@ read_notung_parsable = function(file, mode='D') {
     }
     return(df)
 }
+
+get_species_names = function(phy, sep='_') {
+    split_names = strsplit(phy$tip.label, sep)
+    species_names = c()
+    for (sn in split_names) {
+        species_names = c(species_names, paste0(sn[1], sep, sn[2]))
+    }
+    return(species_names)
+}
