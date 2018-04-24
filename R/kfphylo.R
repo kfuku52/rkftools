@@ -65,6 +65,18 @@ get_tip_labels = function(phy, node_num, out=NULL, mode='repetitive') {
     }
 }
 
+get_outgroup = function(phy) {
+    children_nums = get_children_num(phy, get_root_num(phy))
+    outgroup_labels = phy$tip.label
+    for (cn in children_nums) {
+        og_labels = get_tip_labels(phy, cn)
+        if (length(outgroup_labels)>length(og_labels)) {
+            outgroup_labels = og_labels
+        }
+    }
+    return(outgroup_labels)
+}
+
 get_duplication_confidence_score = function(phy, node_num) {
     children_num = get_children_num(phy, node_num)
     if (length(children_num)==2) {
@@ -366,6 +378,7 @@ transfer_node_labels = function(phy_from, phy_to) {
 
 read_notung_parsable = function(file, mode='D') {
     options(stringsAsFactors=FALSE)
+    cols = c('event', 'gn_node', 'lower_sp_node', 'upper_sp_node')
     if (mode=='D') {
         f = file(file,"r")
         event_lines = c()
@@ -383,14 +396,16 @@ read_notung_parsable = function(file, mode='D') {
             event_items = strsplit(dup_lines[2:length(dup_lines)], "\\s")
             df = data.frame(t(data.frame(dup_items)))
             rownames(df) = NULL
-            colnames(df) = c('event', 'gn_node', 'lower_sp_node', 'upper_sp_node')
+            colnames(df) = cols
             df$event = 'dup'
         } else {
-            df = data.frame()
+            df = data.frame(matrix(NA, 0, length(cols)))
+            colnames(df) = cols
         }
     } else {
         cat('mode', mode, 'is not supported.')
-        df = data.frame()
+        df = data.frame(matrix(NA, 0, length(cols)))
+        colnames(df) = cols
     }
     return(df)
 }
