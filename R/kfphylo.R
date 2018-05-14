@@ -357,7 +357,6 @@ MAD <- function(unrooted_newick,output_mode){
     }
 }
 
-
 transfer_node_labels = function(phy_from, phy_to) {
     for (t in 1:length(phy_to$node.label)) {
         to_node = phy_to$node.label[t]
@@ -417,4 +416,58 @@ get_species_names = function(phy, sep='_') {
         species_names = c(species_names, paste0(sn[1], sep, sn[2]))
     }
     return(species_names)
+}
+
+leaf2species = function(leaf_names) {
+    split = strsplit(leaf_names, '_')
+    species_names = c()
+    for (i in 1:length(split)) {
+        species_names = c(
+            species_names,
+            paste(split[[i]][[1]], split[[i]][[2]])
+        )
+    }
+    return(species_names)
+}
+
+contains_polytomy = function(phy) {
+    if (max(table(phy[['edge']][,1]))>2) {
+        is_polytomy = TRUE
+    } else {
+        is_polytomy = FALSE
+    }
+    return(is_polytomy)
+}
+
+has_same_leaves = function(phy1, phy1_node, phy2, phy2_node) {
+    stopifnot(all(sort(phy1$tip.label)==sort(phy2$tip.label)))
+    phy1_leaves = sort(rkftools::get_tip_labels(phy1, phy1_node))
+    phy2_leaves = sort(rkftools::get_tip_labels(phy2, phy2_node))
+    is_same_leaves = all(phy1_leaves==phy2_leaves)
+    return(is_same_leaves)
+}
+
+multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
+    mtree = multifurcated_tree
+    btree = bifurcated_tree
+    stopifnot(all(mtree[['tip.label']]==btree[['tip.label']]))
+    stopifnot(rkftools::is_same_root(mtree, btree))
+    stopifnot(as.logical(ape::dist.topo(unroot(mtree), unroot(btree), method='PH85')))
+    internal_node_counts = table(mtree[['edge']][,1])
+    polytomy_parents = as.integer(names(internal_node_counts)[internal_node_counts > 2])
+    cat('Polytomy parent nodes:', polytomy_parents, '\n')
+    df = data.frame()
+    for (mtree_pp in polytomy_parents) {
+        mtree_pp_leaves = sort(rkftools::get_tip_labels(mtree, mtree_pp))
+        for (btree_internal_node in btree$edge[,1]) {
+            btree_in_leaves = sort(rkftools::get_tip_labels(btree, btree_internal_node))
+            if (length(mtree_pp_leaves)==length(btree_in_leaves)) {
+                if (all(mtree_pp_leaves==btree_in_leaves)) {
+                    df = rbind(df, data.frame(mtree_node=mtree_pp, btree_node=btree_internal_node))
+                    break
+                }
+            }
+        }
+    }
+    return(df)
 }
