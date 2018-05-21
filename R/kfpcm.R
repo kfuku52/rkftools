@@ -3,7 +3,25 @@
 # Created by: kf
 # Created on: 5/19/18
 
-get_high_complementarity_clades = function(tree, trait_table, complementarity_threshold=0.05, verbose=FALSE, num_test=0) {
+remove_invariant_traits = function(trait_table, small_dif=0.001) {
+    is_small_dif = c()
+    for (i in 1:length(trait_table)) {
+        trait_min = min(trait_table[,i])
+        trait_max = max(trait_table[,i])
+        is_small_dif = c(is_small_dif, trait_max - trait_min < small_dif)
+    }
+    removed_traits = original_traits[is_small_dif]
+    if (length(removed_traits)) {
+        cat("Trait removed due to small difference (<", small_dif, '):',  removed_traits, '\n')
+    } else {
+        cat('All traits passed small difference check.\n')
+    }
+    trait_table = trait_table[,!is_small_dif]
+    out = list(trait_table=trait_table, removed_traits=removed_traits)
+    return(out)
+}
+
+get_high_similarity_clades = function(tree, trait_table, method, threshold, verbose=FALSE, num_test=0) {
     num_all_leaves = length(tree$tip.label)
     collapse_node_nums = c()
     root_num = get_root_num(tree)
@@ -11,9 +29,6 @@ get_high_complementarity_clades = function(tree, trait_table, complementarity_th
     next_node_nums = subroot_nums
     num_processed_node = 0
     while (length(next_node_nums) > 0) {
-        if (verbose) {
-            cat('next_node_nums ( N =', length(next_node_nums), '):', next_node_nums, '\n')
-        }
         current_node_num = next_node_nums[1]
         tip_labels = get_tip_labels(tree, current_node_num)
         num_leaves = length(tip_labels)
@@ -22,17 +37,28 @@ get_high_complementarity_clades = function(tree, trait_table, complementarity_th
         rownames(leaf_combinations) = NULL
         num_combinations = nrow(leaf_combinations)
         if (verbose) {
-            cat('number of leaf combinations =', num_combinations, '\n')
+            cat('number of next_node_nums =', length(next_node_nums), 'number of leaf combinations =', num_combinations, '\n')
         }
-        max_complementarity = 0
-        add_children = FALSE
+        min_similarity = 1
+        do_collapse = TRUE
         for (i in 1:num_combinations) {
-            trait_c1 = unlist(trait_table[leaf_combinations[i,'c1'],])
-            trait_c2 = unlist(trait_table[leaf_combinations[i,'c2'],])
-            current_complementarity = calc_complementarity(trait_c1, trait_c2)
-            max_complementarity = max(max_complementarity, current_complementarity)
-            if (max_complementarity > complementarity_threshold) {
-                add_children = TRUE
+            current_similarity = 1
+            leaf_c1 = tip_labels[leaf_combinations[i,'c1']]
+            leaf_c2 = tip_labels[leaf_combinations[i,'c2']]
+            trait_c1 = unlist(trait_table[leaf_c1,])
+            trait_c2 = unlist(trait_table[leaf_c2,])
+            if (method=='complementarity') {
+                current_similarity = 1 - calc_complementarity(trait_c1, trait_c2, method='weighted')
+            } else {
+                current_similarity = suppressWarnings(cor(trait_c1, trait_c2, method=method))
+                current_similarity = ifelse(is.na(current_similarity), 1, current_similarity)
+            }
+            min_similarity = min(min_similarity, current_similarity)
+            if (min_similarity < threshold) {
+                do_collapse = FALSE
+                if (verbose) {
+                    cat('A low similarity (', min_similarity, ') found at', i, 'th leaf combinations (', num_combinations, ')\n')
+                }
                 break
             }
         }
@@ -41,24 +67,24 @@ get_high_complementarity_clades = function(tree, trait_table, complementarity_th
         } else {
             next_node_nums = next_node_nums[2:length(next_node_nums)]
         }
-        if (add_children) {
+        if (do_collapse) {
+            cat('node_num =', current_node_num, 'size =', num_leaves, 'Min similarity =', min_similarity, '\n')
+            collapse_node_nums = c(collapse_node_nums, current_node_num)
+       } else {
             children_nums = get_children_num(tree, current_node_num)
             children_nums = na.omit(children_nums)
             children_nums = children_nums[children_nums > num_all_leaves]
             next_node_nums = c(next_node_nums, children_nums)
             if (verbose) {
-                cat('node_num =', current_node_num, 'size =', num_leaves, 'Max complementarity =', max_complementarity, '\n')
+                cat('node_num =', current_node_num, 'size =', num_leaves, 'Min similarity =', min_similarity, '\n')
             }
-        } else {
-            cat('node_num =', current_node_num, 'size =', num_leaves, 'Max complementarity =', max_complementarity, '\n')
-            collapse_node_nums = c(collapse_node_nums, current_node_num)
         }
         num_processed_node = num_processed_node + 1
         if (num_processed_node%%100==0) {
             cat('processed', num_processed_node, 'nodes\n')
         }
-        if (num_test!=0)&&(num_processed_node==num_test) {
-            cat('Reaching num_test, Exiting at the ', num_test, ' th processed node.')
+        if ((num_test!=0)&(num_processed_node==num_test)) {
+            cat('Reaching num_test, Exiting at the ', num_test, ' th processed node.\n')
             break
         }
     }
@@ -171,6 +197,15 @@ get_tree_table = function(pcm_out, mode) {
             model_score = pcm_out$score,
             stringsAsFactors = FALSE
         )
+    } else if (mode=='PhylogeneticEM') {
+        pp = PhylogeneticEM::params_process(pcm_out)
+        df = data.frame(matrix(NA,1,4))
+        colnames(df) = c('num_shift','log_likelihood','num_species','num_leaf')
+        df$num_shift = ncol(pp[['shifts']][['values']])
+        df$log_likelihood = attr(pp, 'log_likelihood')
+        df$num_species = length(unique(suppressWarnings(leaf2species(leaf_names=pcm_out[['phylo']][['tip.label']]))))
+        df$num_leaf = length(pcm_out[['phylo']][['tip.label']])
+        tree_table = df
     } else {
         cat('mode "', mode, '" is not supported.\n')
     }
@@ -219,9 +254,31 @@ get_regime_table = function(pcm_out, mode) {
         tmp_table = cbind(NA, NA, "log_likelihood", matrix(pcm_out$logLik, 1, length(pcm_out$logLik)))
         colnames(tmp_table) = column_names
         regime_table = rbind(regime_table, tmp_table)
+    } else if (mode=='PhylogeneticEM') {
+        pp = PhylogeneticEM::params_process(pcm_out)
+        traits = rownames(pcm_out[['Y_data']])
+        num_trait = length(traits)
+        shift_node_indices = pp[['shifts']][['edges']]
+        shift_node_nums = pcm_out[['phylo']]$edge[shift_node_indices,2]
+        num_shift = length(shift_node_nums)
+        df = data.frame(matrix(NA, num_shift+3, num_trait+3))
+        colnames(df) = c('regime','node_name','param',traits)
+        row=1
+        if (num_shift) {
+            df[row:(row+num_shift-1),'regime'] = 1:num_shift
+            df[row:(row+num_shift-1),'node_name'] = get_node_name_by_num(pcm_out[['phylo']], shift_node_nums)
+            df[row:(row+num_shift-1),'param'] = 'shift_value'
+            df[row:(row+num_shift-1),traits] = t(pp[['shifts']][['values']])
+        }
+        row = row+num_shift - 1
+        row = row+1; df[row,] = c(NA, NA, 'alpha', diag(as.matrix(pp$selection.strength)))
+        row = row+1; df[row,] = c(NA, NA, 'sigma2', diag(as.matrix(pp$variance)))
+        row = row+1; df[row,] = c(NA, NA, 'intercept', pp$optimal.value)
+        regime_table = df
     } else {
         cat('mode "', mode, '" is not supported.\n')
     }
+    rownames(regime_table) = NULL
     return(regime_table)
 }
 
@@ -233,6 +290,35 @@ get_leaf_regimes = function(pcm_out, mode) {
         shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
         if (is.null(names(shift_conf))) {
             names(shift_conf) = 1:length(shift_conf)
+        }
+        for (node_index in shift_conf) {
+            node_name = get_node_name_by_num(phy=tree, node_num=tree$edge[node_index,2])
+            regime = ifelse(is.null(names(shift_conf)[shift_conf==node_index]), 1, names(shift_conf)[shift_conf==node_index])
+            for (subtree in subtrees(tree)) {
+                if (subtree$node.label[1]==node_name) {
+                    table_leaves = as.character(leaf_regimes$leaf)
+                    subtree_leaves = as.character(subtree$tip.label)
+                    leaf_regimes[table_leaves %in% subtree_leaves, "regime"] = regime
+                    break
+                }
+            }
+            for (leaf in tree$tip.label) {
+                if (leaf==node_name) {
+                    leaf_regimes[leaf_regimes$leaf==leaf, "regime"] = regime
+                    break
+                }
+            }
+        }
+    } else if (mode=='PhylogeneticEM') {
+        tree = pcm_out[['phylo']]
+        pp = PhylogeneticEM::params_process(pcm_out)
+        shift_nodes = pp[['shifts']][['edges']]
+        leaf_regimes = data.frame(regime=0, leaf=tree$tip.label)
+        shift_conf = shift_nodes
+        if (!is.null(shift_conf)) {
+            if (is.null(names(shift_conf))) {
+                names(shift_conf) = 1:length(shift_conf)
+            }
         }
         for (node_index in shift_conf) {
             node_name = get_node_name_by_num(phy=tree, node_num=tree$edge[node_index,2])
@@ -280,9 +366,30 @@ get_leaf_table = function(pcm_out, mode) {
         tmp_table = cbind(leaf_regimes, "residuals", pcm_out$residuals)
         colnames(tmp_table) = column_names
         leaf_table = rbind(leaf_table, tmp_table)
+    } else if (mode=='PhylogeneticEM') {
+        num_leaf = length(pcm_out[['phylo']][['tip.label']])
+        traits = rownames(pcm_out[['Y_data']])
+        num_trait = length(traits)
+        params = c('imputed','expectations')
+        num_param = length(params)
+        df_leaf_regimes = get_leaf_regimes(pcm_out, mode='PhylogeneticEM')
+        regimes = df_leaf_regimes$regime
+        df = data.frame(matrix(NA, num_leaf*num_param, num_trait+3))
+        colnames(df) = c('regime','leaf','param', rownames(pcm_out[['Y_data']]))
+        ind_start = 1
+        for (param in params) {
+            ind_end = ind_start + num_leaf - 1
+            df[ind_start:ind_end,'regime'] = regimes
+            df[ind_start:ind_end,'leaf'] = pcm_out[['phylo']][['tip.label']]
+            df[ind_start:ind_end,'param'] = param
+            df[ind_start:ind_end,traits] = t(PhylogeneticEM::imputed_traits(pcm_out, trait=1:num_trait, where='tips', what=param))
+            ind_start = ind_end + 1
+        }
+        leaf_table = df
     } else {
         cat('mode "', mode, '" is not supported.\n')
     }
+    rownames(leaf_table) = NULL
     return(leaf_table)
 }
 
@@ -329,10 +436,12 @@ regime_table_collapse2original = function(regime_table, tree_original, tree_coll
             regime_table[is_target,'node_name'] = node_name_original
         }
     }
+    rownames(df) = NULL
     return(regime_table)
 }
 
 leaf_table_collapse2original = function(leaf_table, tree_original, tree_collapsed, node_num_mapping) {
+    num_leaf_original = length(tree_original$tip.label)
     node_names_collapsed = unlist(unique(na.omit(leaf_table['leaf'])))
     params = unlist(unique(na.omit(leaf_table['param'])))
     df = data.frame()
@@ -342,14 +451,29 @@ leaf_table_collapse2original = function(leaf_table, tree_original, tree_collapse
                 node_num_collapsed = get_node_num_by_name(tree_collapsed, node_name_collapsed)
                 node_num_originals = node_num_mapping[(node_num_mapping['tree_collapsed']==node_num_collapsed),'tree_original']
                 for (node_num_original in node_num_originals) {
-                    node_name_original = get_node_name_by_num(tree_original, node_num_original)
-                    conditions = (leaf_table['param']==param)&(leaf_table['leaf']==node_name_collapsed)
-                    row = leaf_table[conditions,]
-                    row[,'leaf'] = node_name_original
-                    df = rbind(df, row)
+                    if (node_num_original <= num_leaf_original) {
+                        node_name_original = get_node_name_by_num(tree_original, node_num_original)
+                        conditions = (leaf_table['param']==param)&(leaf_table['leaf']==node_name_collapsed)
+                        row = leaf_table[conditions,]
+                        row[,'leaf'] = node_name_original
+                        df = rbind(df, row)
+                    }
                 }
             }
         }
     }
+    rownames(df) = NULL
     return(df)
+}
+
+restore_imputed_leaves = function(leaf_table, original_trait_table) {
+    traits = colnames(original_trait_table)
+    leaf_names = leaf_table$leaf
+    for (leaf_name in leaf_names) {
+        if (leaf_name %in% rownames(original_trait_table)) {
+            conditions = ((leaf_table$leaf==leaf_name)&(leaf_table$param=='imputed'))
+            leaf_table[conditions, traits] = original_trait_table[leaf_name, traits]
+        }
+    }
+    return(leaf_table)
 }

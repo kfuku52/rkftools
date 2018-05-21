@@ -397,10 +397,14 @@ leaf2species = function(leaf_names) {
     split = strsplit(leaf_names, '_')
     species_names = c()
     for (i in 1:length(split)) {
-        species_names = c(
-            species_names,
-            paste(split[[i]][[1]], split[[i]][[2]])
-        )
+        if (length(split[[i]])>=3) {
+            species_names = c(
+                species_names,
+                paste(split[[i]][[1]], split[[i]][[2]])
+            )
+        } else {
+            warning('leaf name could not be interpreted as genus_species_gene: ', split[[i]], '\n')
+        }
     }
     return(species_names)
 }
@@ -447,3 +451,12 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
     return(df)
 }
 
+collapse_short_branches = function(tree, tol=1e-8) {
+    if (any(abs(tree$edge.length) < tol)) {
+        cat('Extremely short branches ( n =', sum(abs(tree$edge.length) < tol), ') were collapsed. tol =', tol, '\n')
+        tree = ape::di2multi(tree, tol=tol)
+    } else {
+        cat('No extremely short branch was detected. tol =', tol, '\n')
+    }
+    return(tree)
+}
