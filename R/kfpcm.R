@@ -320,6 +320,7 @@ get_leaf_regimes = function(pcm_out, mode) {
                 names(shift_conf) = 1:length(shift_conf)
             }
         }
+        shift_conf = shift_conf[order(tree$edge[shift_conf,1], decreasing=FALSE)]
         for (node_index in shift_conf) {
             node_name = get_node_name_by_num(phy=tree, node_num=tree$edge[node_index,2])
             regime = ifelse(is.null(names(shift_conf)[shift_conf==node_index]), 1, names(shift_conf)[shift_conf==node_index])
