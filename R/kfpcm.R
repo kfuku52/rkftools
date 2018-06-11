@@ -27,6 +27,11 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
     root_num = get_root_num(tree)
     subroot_nums = get_children_num(tree, root_num)
     next_node_nums = subroot_nums
+    for (nnn in next_node_nums) {
+        if (length(get_tip_labels(tree, nnn))==1) {
+            next_node_nums = next_node_nums[next_node_nums!=nnn]
+        }
+    }
     num_processed_node = 0
     while (length(next_node_nums) > 0) {
         current_node_num = next_node_nums[1]
