@@ -28,6 +28,23 @@ get_children_num = function(phy, node_num) {
     return(children_num)
 }
 
+get_descendent_num = function(phy, node_num) {
+    descendent_nums = c()
+    children_nums = get_children_num(phy, node_num)
+    current_size = length(children_nums)
+    next_size = current_size + 1
+    while(!all(is.na(children_nums))) {
+        children_nums = children_nums[!is.na(children_nums)]
+        descendent_nums = c(descendent_nums, children_nums)
+        childrens = c()
+        for (nn in children_nums) {
+            childrens = c(childrens, get_children_num(phy, nn))
+        }
+        children_nums = childrens
+    }
+    descendent_nums = sort(descendent_nums)
+    return(descendent_nums)
+}
 
 get_tip_labels = function(phy, node_num, out=NULL) {
     num_leaf = length(phy$tip.label)
@@ -38,6 +55,21 @@ get_tip_labels = function(phy, node_num, out=NULL) {
         tip_labels = phy$tip.label[node_num]
     }
     return(tip_labels)
+}
+
+get_node_age = function(phy, node_num) {
+    stopifnot(is.ultrametric(phy))
+    age = 0
+    current_node_num = node_num
+    while (!is.na(current_node_num)) {
+        descendent_node_num = get_children_num(phy, current_node_num)[1]
+        if (!is.na(descendent_node_num)) {
+            edge_length = phy$edge.length[(phy$edge[,1]==current_node_num)&(phy$edge[,2]==descendent_node_num)]
+            age = age + edge_length
+        }
+        current_node_num = descendent_node_num
+    }
+    return(age)
 }
 
 get_outgroup = function(phy) {
