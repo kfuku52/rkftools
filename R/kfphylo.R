@@ -7,7 +7,7 @@
 get_node_num_by_name = function(phy, node_name) {
     node_names = c(phy$tip.label, phy$node.label)
     node_nums = 1:length(node_names)
-    node_num = node_nums[node_names==node_name]
+    node_num = node_nums[node_names %in% node_name]
     return(node_num)
 }
 

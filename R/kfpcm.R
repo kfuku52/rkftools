@@ -222,13 +222,13 @@ get_regime_table = function(pcm_out, mode) {
         column_names = c("regime", "node_name", "param", colnames(pcm_out$Y))
         regime_table = data.frame(matrix(0,0,ncol(pcm_out$Y)+3))
         colnames(regime_table) = column_names
-
-        if (is.null(names(pcm_out$shift.configuration))) {
-            regimes = 1:length(pcm_out$shift.configuration)
+        shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
+        if (is.null(names(shift_conf))) {
+            regimes = 1:length(shift_conf) #####################################################################
         } else {
-            regimes = as.integer(names(pcm_out$shift.configuration))
+            regimes = as.integer(names(shift_conf))
         }
-        branch_index = pcm_out$shift.configuration
+        branch_index = shift_conf
         node_names = c()
         for (ind in branch_index) {
             node_names = c(node_names, get_node_name_by_num(phy=adj_data$tree, node_num=adj_data$tree$edge[ind,2]))
@@ -294,7 +294,7 @@ get_leaf_regimes = function(pcm_out, mode) {
         leaf_regimes = data.frame(regime=0, leaf=rownames(pcm_out$Y))
         shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
         if (is.null(names(shift_conf))) {
-            names(shift_conf) = 1:length(shift_conf)
+            names(shift_conf) = 1:length(shift_conf) ###################################
         }
         for (node_index in shift_conf) {
             node_name = get_node_name_by_num(phy=tree, node_num=tree$edge[node_index,2])
