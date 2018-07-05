@@ -153,11 +153,7 @@ map_node_num = function(tree_original, tree_collapsed, collapse_leaf_names, verb
                 }
                 nn2_leaf_names = sort(nn2_leaf_names)
             }
-            if (is_collapse_nn2) {
-                flag = all(nn1_leaf_names %in% nn2_leaf_names)
-            } else {
-                flag = all(nn1_leaf_names==nn2_leaf_names)
-            }
+            flag = all(nn1_leaf_names %in% nn2_leaf_names)
             if (verbose) {
                 cat('nn1:', nn1, 'nn2:', nn2,
                     'collapse match:', all(nn1_leaf_names %in% nn2_leaf_names),
@@ -224,7 +220,7 @@ get_regime_table = function(pcm_out, mode) {
         colnames(regime_table) = column_names
         shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
         if (is.null(names(shift_conf))) {
-            regimes = 1:length(shift_conf) #####################################################################
+            regimes = 1:length(shift_conf)
         } else {
             regimes = as.integer(names(shift_conf))
         }
@@ -294,7 +290,7 @@ get_leaf_regimes = function(pcm_out, mode) {
         leaf_regimes = data.frame(regime=0, leaf=rownames(pcm_out$Y))
         shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
         if (is.null(names(shift_conf))) {
-            names(shift_conf) = 1:length(shift_conf) ###################################
+            names(shift_conf) = 1:length(shift_conf)
         }
         for (node_index in shift_conf) {
             node_name = get_node_name_by_num(phy=tree, node_num=tree$edge[node_index,2])
