@@ -139,9 +139,11 @@ map_node_num = function(tree_original, tree_collapsed, collapse_leaf_names, verb
     colnames(df) = c('tree_original', 'tree_collapsed')
     tree_original_node_nums = 1:max(tree_original$edge[,1])
     tree_collapsed_node_nums = 1:max(tree_collapsed$edge[,1])
-    for (nn1 in tree_original_node_nums) {
+    while (length(tree_original_node_nums)>0) {
+        nn1 = tree_original_node_nums[1]
         nn1_leaf_names = sort(get_tip_labels(tree_original, nn1))
-        for (nn2 in tree_collapsed_node_nums) {
+        for (i in 1:length(tree_collapsed_node_nums)) {
+            nn2 = tree_collapsed_node_nums[i]
             nn2_leaf_names = sort(get_tip_labels(tree_collapsed, nn2))
             collapsed_node_nums = nn2_leaf_names[as.character(nn2_leaf_names) %in% names(collapse_leaf_names)]
             any_collapse = (length(collapsed_node_nums)>0)
@@ -153,7 +155,13 @@ map_node_num = function(tree_original, tree_collapsed, collapse_leaf_names, verb
                 }
                 nn2_leaf_names = sort(nn2_leaf_names)
             }
-            flag = all(nn1_leaf_names %in% nn2_leaf_names)
+            if (is_collapse_nn2) {
+                flag = all(nn1_leaf_names %in% nn2_leaf_names)
+            } else if (length(nn1_leaf_names)==length(nn2_leaf_names)) {
+                flag = identical(nn1_leaf_names, nn2_leaf_names)
+            } else {
+                flag = FALSE
+            }
             if (verbose) {
                 cat('nn1:', nn1, 'nn2:', nn2,
                     'collapse match:', all(nn1_leaf_names %in% nn2_leaf_names),
@@ -162,12 +170,28 @@ map_node_num = function(tree_original, tree_collapsed, collapse_leaf_names, verb
             }
             if (flag) {
                 df[nn1,] = c(nn1,nn2)
+                tree_original_node_nums = tree_original_node_nums[-1]
                 if (!is_collapse_nn2) {
+                    tree_collapsed_node_nums = tree_collapsed_node_nums[-i]
                     tree_collapsed_node_nums = tree_collapsed_node_nums[tree_collapsed_node_nums!=nn2]
                 }
                 break
             }
         }
+        if (!flag) {
+            cat('Cannot find the original tree node:', nn1, '\n')
+            cat('tree_original_node_nums:', tree_original_node_nums, '\n')
+            cat('tree_collapsed_node_nums:', tree_collapsed_node_nums, '\n')
+            break
+        }
+    }
+    num_match_before = nrow(df)
+    df = df[(!is.na(df[['tree_original']])),]
+    df = df[(!is.na(df[['tree_collapsed']])),]
+    num_match_after = nrow(df)
+    if (num_match_before!=num_match_after) {
+        num_na = num_match_before-num_match_after
+        cat('Warning:', num_na, 'NA are produced in map_node_num().\n')
     }
     return(df)
 }
