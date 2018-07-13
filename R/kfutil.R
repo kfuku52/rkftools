@@ -22,3 +22,16 @@ get_parsed_args = function(args, print=TRUE) {
     }
     return(parsed)
 }
+
+is.blank = function(x, false.triggers=FALSE){
+    # https://stackoverflow.com/questions/19655579/a-function-that-returns-true-on-na-null-nan-in-r
+    if(is.function(x)) return(FALSE) # Some of the tests below trigger
+                                     # warnings when used on functions
+    return(
+        is.null(x) ||                # Actually this line is unnecessary since
+        length(x) == 0 ||            # length(NULL) = 0, but I like to be clear
+        all(is.na(x)) ||
+        all(x=="") ||
+        (false.triggers && all(!x))
+    )
+}
