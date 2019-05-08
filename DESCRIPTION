@@ -2,9 +2,9 @@ Package: rkftools
 Title: What the Package Does (one line, title case)
 Version: 0.0.1
 Authors@R: person("Kenji", "Fukushima", email = "kfuku52@gmail.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Description: This R package contains various tools to handle data in evolutionary biology.
 Depends: R (>= 3.4.1)
-License: What license is it under?
+License: BSD 3-Clause License
 Encoding: UTF-8
 LazyData: true
 Imports: ape

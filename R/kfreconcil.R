@@ -73,7 +73,7 @@ read_notung_parsable = function(file, mode='D') {
             df = data.frame(t(data.frame(dup_items)))
             rownames(df) = NULL
             colnames(df) = cols
-            df$event = 'dup'
+            df$event = 'D'
         } else {
             df = data.frame(matrix(NA, 0, length(cols)))
             colnames(df) = cols
