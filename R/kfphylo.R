@@ -46,6 +46,55 @@ get_descendent_num = function(phy, node_num) {
     return(descendent_nums)
 }
 
+get_parent_num = function(phy, node_num) {
+    parent_num = phy$edge[(phy$edge[,2]==node_num),1]
+    return(parent_num)
+}
+
+get_sister_num = function(phy, node_num) {
+    parent_num = phy$edge[(phy$edge[,2]==node_num),1]
+    sibling_num = phy$edge[(phy$edge[,1]==parent_num),2]
+    sister_num = sibling_num[sibling_num!=node_num]
+    return(sister_num)
+}
+
+collapse_short_external_edges = function(tree, threshold=1e-6) {
+    stopifnot(ape::is.binary(tree))
+    edge_idx = 1:nrow(tree$edge)
+    is_external_edge = (tree$edge[,2]<=length(tree$tip.label))
+    external_edge_lengths = tree$edge.length[is_external_edge]
+    min_eel = min(external_edge_lengths)
+    cat('Minimum external edge length:', min_eel, '\n')
+    is_short_eel = (is_external_edge)&(tree$edge.length<threshold)
+    num_short_eel = sum(is_short_eel)
+    cat('Number of short external edges ( length <', threshold, '):', num_short_eel, '\n')
+    if (num_short_eel>0) {
+        short_eel_idx = edge_idx[is_short_eel]
+        for (i in short_eel_idx) {
+            if (tree$edge.length[short_eel_idx]<threshold) {
+                shift_value = threshold - tree$edge.length[i]
+                sister_node_num = get_sister_num(tree, tree$edge[i,2])
+                sister_edge_idx = edge_idx[tree$edge[,2]==sister_node_num]
+                flag = TRUE
+                current_idx = i
+                while (flag==TRUE) {
+                    parent_node_num = tree$edge[current_idx,1]
+                    parent_edge_idx = edge_idx[tree$edge[,2]==parent_node_num]
+                    parent_edge_length = tree$edge.length[parent_edge_idx]
+                    if (parent_edge_length>=threshold+shift_value) {
+                        flag = FALSE
+                    }
+                }
+                cat('Transfering branch length from edge', parent_edge_idx, 'to', i, 'and', sister_edge_idx, '\n')
+                tree$edge.length[i] = tree$edge.length[i] +shift_value
+                tree$edge.length[sister_edge_idx] = tree$edge.length[sister_edge_idx] + shift_value
+                tree$edge.length[parent_edge_idx] = tree$edge.length[parent_edge_idx] - shift_value
+            }
+        }
+    }
+    return(tree)
+}
+
 get_tip_labels = function(phy, node_num, out=NULL) {
     num_leaf = length(phy$tip.label)
     if (node_num > num_leaf) {
