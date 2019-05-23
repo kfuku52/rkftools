@@ -71,7 +71,7 @@ collapse_short_external_edges = function(tree, threshold=1e-6) {
     if (num_short_eel>0) {
         short_eel_idx = edge_idx[is_short_eel]
         for (i in short_eel_idx) {
-            if (tree$edge.length[short_eel_idx]<threshold) {
+            if (tree$edge.length[i]<threshold) {
                 shift_value = threshold - tree$edge.length[i]
                 sister_node_num = get_sister_num(tree, tree$edge[i,2])
                 sister_edge_idx = edge_idx[tree$edge[,2]==sister_node_num]
