@@ -83,6 +83,8 @@ collapse_short_external_edges = function(tree, threshold=1e-6) {
                     parent_edge_length = tree$edge.length[parent_edge_idx]
                     if (parent_edge_length>=threshold+shift_value) {
                         flag = FALSE
+                    } else {
+                        current_idx = edge_idx[tree$edge[,2]==parent_node_num]
                     }
                 }
                 cat('Transfering branch length from edge', parent_edge_idx, 'to', i, 'and', sister_edge_idx, '\n')
