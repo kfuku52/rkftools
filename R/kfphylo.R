@@ -58,16 +58,24 @@ get_sister_num = function(phy, node_num) {
     return(sister_num)
 }
 
+# alias
 collapse_short_external_edges = function(tree, threshold=1e-6) {
+    return(pad_short_edges(tree, threshold=threshold, external_only=TRUE))
+}
+
+pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
     stopifnot(ape::is.binary(tree))
     edge_idx = 1:nrow(tree$edge)
-    is_external_edge = (tree$edge[,2]<=length(tree$tip.label))
-    external_edge_lengths = tree$edge.length[is_external_edge]
-    min_eel = min(external_edge_lengths)
-    cat('Minimum external edge length:', min_eel, '\n')
-    is_short_eel = (is_external_edge)&(tree$edge.length<threshold)
+    is_target_edge = TRUE
+    if (external_only) {
+        is_target_edge = is_target_edge & (tree$edge[,2]<=length(tree$tip.label))
+    }
+    edge_lengths = tree[['edge.length']][is_target_edge]
+    min_eel = min(edge_lengths)
+    cat('Minimum edge length:', min_eel, '\n')
+    is_short_eel = (is_target_edge)&(tree$edge.length<threshold)
     num_short_eel = sum(is_short_eel)
-    cat('Number of short external edges ( length <', threshold, '):', num_short_eel, '\n')
+    cat('Number of short edges ( length <', threshold, '):', num_short_eel, '\n')
     if (num_short_eel>0) {
         short_eel_idx = edge_idx[is_short_eel]
         for (i in short_eel_idx) {
@@ -457,6 +465,21 @@ collapse_short_branches = function(tree, tol=1e-8) {
         tree = ape::di2multi(tree, tol=tol)
     } else {
         cat('No extremely short branch was detected. tol =', tol, '\n')
+    }
+    return(tree)
+}
+
+force_ultrametric = function(tree, stop_if_larger_change=0.01) {
+    if (ape::is.ultrametric(tree)) {
+        cat('The tree is ultrametric.\n')
+    } else {
+        cat('The tree is not ultrametric. Adjusting the branch length.\n')
+        edge_length_before = tree[['edge.length']]
+        tree = ape::chronoMPL(tree)
+        edge_length_after = tree[['edge.length']]
+        sum_adjustment = sum(abs(edge_length_after-edge_length_before))
+        cat('Total branch length difference between before- and after-adjustment:', sum_adjustment, '\n')
+        stopifnot(sum_adjustment<(sum(tree[['edge.length']]) * stop_if_larger_change))
     }
     return(tree)
 }
