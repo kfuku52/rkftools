@@ -83,22 +83,32 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
                 shift_value = threshold - tree$edge.length[i]
                 sister_node_num = get_sister_num(tree, tree$edge[i,2])
                 sister_edge_idx = edge_idx[tree$edge[,2]==sister_node_num]
+                root_num = get_root_num(tree)
                 flag = TRUE
+                flag_root = FALSE
                 current_idx = i
                 while (flag==TRUE) {
                     parent_node_num = tree$edge[current_idx,1]
                     parent_edge_idx = edge_idx[tree$edge[,2]==parent_node_num]
                     parent_edge_length = tree$edge.length[parent_edge_idx]
-                    if (parent_edge_length>=threshold+shift_value) {
+                    if (parent_node_num==root_num) {
+                        flag = FALSE
+                        flag_root = TRUE
+                    } else if (parent_edge_length>=threshold+shift_value) {
                         flag = FALSE
                     } else {
                         current_idx = edge_idx[tree$edge[,2]==parent_node_num]
                     }
                 }
-                cat('Transfering branch length from edge', parent_edge_idx, 'to', i, 'and', sister_edge_idx, '\n')
+
                 tree$edge.length[i] = tree$edge.length[i] +shift_value
                 tree$edge.length[sister_edge_idx] = tree$edge.length[sister_edge_idx] + shift_value
-                tree$edge.length[parent_edge_idx] = tree$edge.length[parent_edge_idx] - shift_value
+                if (flag_root) {
+                    cat('Adding branch length to subroot edges,', i, 'and', sister_edge_idx, '\n')
+                } else {
+                    cat('Transfering branch length from edge', parent_edge_idx, 'to', i, 'and', sister_edge_idx, '\n')
+                    tree$edge.length[parent_edge_idx] = tree$edge.length[parent_edge_idx] - shift_value
+                }
             }
         }
     }
