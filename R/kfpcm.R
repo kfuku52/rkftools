@@ -313,7 +313,7 @@ get_leaf_regimes = function(pcm_out, mode) {
         shift_nodes = c()
         leaf_regimes = data.frame(regime=0, leaf=rownames(pcm_out$Y))
         shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
-        if (is.null(names(shift_conf))) {
+        if ((length(shift_conf)>0)&(is.null(names(shift_conf)))) {
             names(shift_conf) = 1:length(shift_conf)
         }
         for (node_index in shift_conf) {
