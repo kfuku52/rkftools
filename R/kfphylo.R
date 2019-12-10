@@ -58,6 +58,21 @@ get_sister_num = function(phy, node_num) {
     return(sister_num)
 }
 
+get_ancestor_num = function(phy, node_num) {
+    ancestor_num = c()
+    root_num = get_root_num(phy)
+    current_node_num = node_num
+    for (i in 1:phy[['Nnode']]) {
+        if (current_node_num==root_num) {
+            break
+        }
+        parent_num = get_parent_num(phy, current_node_num)
+        ancestor_num = c(ancestor_num, parent_num)
+        current_node_num = parent_num
+    }
+    return(ancestor_num)
+}
+
 # alias
 collapse_short_external_edges = function(tree, threshold=1e-6) {
     return(pad_short_edges(tree, threshold=threshold, external_only=TRUE))

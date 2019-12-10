@@ -6,6 +6,7 @@ This R package contains various tools to handle data in evolutionary biology.
 * [ape](http://ape-package.ird.fr/)
 
 # Related softwares and R packages
+* [RADTE](https://github.com/kfuku52/RADTE)
 * [l1ou](https://github.com/khabbazian/l1ou) 
 * [PhylogeneticEM](https://github.com/pbastide/PhylogeneticEM)
 * [NOTUNG](http://www.cs.cmu.edu/~durand/Notung/)
