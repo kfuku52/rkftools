@@ -141,6 +141,24 @@ get_tip_labels = function(phy, node_num, out=NULL) {
     return(tip_labels)
 }
 
+get_nearest_tips = function(phy, query, subjects, mrca_matrix) {
+    stopifnot(length(query)==1)
+    query_num = get_node_num_by_name(phy, query)
+    mrcas = mrca_matrix[query,subjects]
+    if (length(subjects)==1) {
+        names(mrcas) = subjects
+    }
+    uniq_mrcas = unique(mrcas)
+    path_lens = rep(NA, length(uniq_mrcas))
+    names(path_lens) = uniq_mrcas
+    for (i in 1:length(uniq_mrcas)) {
+        path_lens[i] = length(ape::nodepath(phy, from=query_num, to=uniq_mrcas[i]))
+    }
+    nearest_mrca = names(path_lens)[path_lens==min(path_lens)]
+    nearest_tips = names(mrcas)[mrcas==nearest_mrca]
+    return(list(nearests=nearest_tips, mrca=nearest_mrca))
+}
+
 get_node_age = function(phy, node_num) {
     stopifnot(is.ultrametric(phy))
     age = 0
@@ -417,6 +435,12 @@ transfer_node_labels = function(phy_from, phy_to) {
     return(phy_to)
 }
 
+get_species_name = function(a) {
+    a = sub('_',' ',a)
+    a = sub('_.*','',a)
+    return(a)
+}
+
 get_species_names = function(phy, sep='_') {
     split_names = strsplit(phy$tip.label, sep)
     species_names = c()
@@ -508,3 +532,92 @@ force_ultrametric = function(tree, stop_if_larger_change=0.01) {
     }
     return(tree)
 }
+
+get_single_branch_tree = function(name, dist) {
+    phy = list(
+      edge = matrix(c(2,1),1,2),
+      tip.label = name,
+      edge.length = dist,
+      Nnode = 1
+    )
+    class(phy) = "phylo"
+    return(phy)
+}
+
+remove_redundant_root_edge = function(phy) {
+    root_num = get_root_num(phy)
+    is_root_edge = (phy$edge[,1]!=root_num)
+    phy$edge = phy$edge[is_root_edge,]
+    phy$edge[phy$edge>root_num] = phy$edge[phy$edge>root_num] - 1
+    phy$edge.length = phy$edge.length[is_root_edge]
+    phy$Nnode = phy$Nnode - 1
+    return(phy)
+}
+
+table2phylo = function(df, name_col, dist_col) {
+    root_id = max(df$numerical_label)
+    df[(df$numerical_label==root_id), 'sister'] = -999
+    df[(df$numerical_label==root_id), 'parent'] = -999
+    root_name = df[(df$numerical_label==root_id), name_col]
+    root_dist = df[(df$numerical_label==root_id), dist_col]
+    phy = get_single_branch_tree(root_name, root_dist)
+    next_node_ids = sort(df[(df$parent==root_id),'numerical_label'])
+    while (length(next_node_ids)>0) {
+        for (nni in next_node_ids) {
+            nni_name = df[(df$numerical_label==nni), name_col]
+            nni_dist = df[(df$numerical_label==nni), dist_col]
+            parent_id = df[(df$numerical_label==nni), 'parent']
+            parent_name = df[(df$numerical_label==parent_id), name_col]
+            parent_num = get_node_num_by_name(phy, parent_name)
+            parent_index = (1:nrow(phy$edge))[phy$edge[,2]==parent_num]
+            sister_id = df[(df$numerical_label==nni), 'sister']
+            sister_name = df[(df$numerical_label==sister_id), name_col]
+            sister_dist = df[(df$numerical_label==sister_id), dist_col]
+            sister_num = get_node_num_by_name(phy, sister_name)
+            sister_index = (1:nrow(phy$edge))[phy$edge[,2]==sister_num]
+            branch = get_single_branch_tree(nni_name, nni_dist)
+            if (length(parent_num)==0) {
+                sister_dist = ifelse(sister_dist<1e-8, 1e-8, sister_dist)
+                #if (sister_dist>phy[['edge.length']][sister_index]) {
+                #    phy[['edge.length']][sister_index] = sister_dist + 1e-8
+                #}
+                phy = ape::bind.tree(phy, branch, where=sister_num, position=sister_dist)
+            } else {
+                phy = ape::bind.tree(phy, branch, where=parent_num, position=0)
+            }
+        }
+        next_node_ids = df[(df$parent %in% next_node_ids),'numerical_label']
+    }
+    phy = remove_redundant_root_edge(phy)
+    phy = ape::ladderize(phy, right=TRUE)
+    num_leaf = length(phy$tip.label)
+    num_intnode = nrow(phy$edge) - length(phy$tip.label)
+    phy$node.label = rep('placeholder', num_intnode)
+    next_node_ids = sort(df[(df[[name_col]] %in% phy$tip.label), 'numerical_label'])
+    while ((length(next_node_ids)!=1)|(next_node_ids[1]>=0)) {
+        tmp_next_node_ids = c()
+        for (nni in next_node_ids) {
+            if (nni>=0) {
+                nni_name = df[(df$numerical_label==nni), name_col]
+                nni_num = (1:max(phy$edge))[c(phy$tip.label, phy$node.label)==nni_name]
+                parent_num = phy$edge[(phy$edge[,2]==nni_num),1]
+                parent_label_index = parent_num - num_leaf
+                parent_id = df[(df$numerical_label==nni), 'parent']
+                if (parent_id>=0) {
+                    parent_name = df[(df$numerical_label==parent_id), name_col]
+                    phy$node.label[parent_label_index] = parent_name
+                    tmp_next_node_ids = c(tmp_next_node_ids, parent_id)
+                }
+            }
+        }
+        next_node_ids = sort(unique(tmp_next_node_ids))
+        if (length(next_node_ids)==0) {
+            next_node_ids = c(-999)
+        }
+    }
+    if (sum(phy$node.label=='placeholder')>1) {
+        warning('Node label "placeholder" appeared more than once.')
+    }
+    return(phy)
+}
+
