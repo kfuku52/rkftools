@@ -621,3 +621,21 @@ table2phylo = function(df, name_col, dist_col) {
     return(phy)
 }
 
+fill_node_labels = function(phy) {
+    nl = phy[['node.label']]
+    is_missing = (is.na(nl))|(nl=='')
+    if (sum(is_missing)==0) {
+        return(phy)
+    }
+    missing_index = (1:length(nl))[is_missing]
+    cat('Filling', length(missing_index), 'node names.\n')
+    counter = 0
+    for (i in missing_index) {
+        lab = paste0('n', counter)
+        if (!any(lab==nl)) {
+            phy[['node.label']][i] = lab
+        }
+        counter = counter + 1
+    }
+    return(phy)
+}

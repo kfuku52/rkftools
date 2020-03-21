@@ -2,11 +2,14 @@
 This R package contains various tools to handle data in evolutionary biology.
 
 # Dependency
-* [R 3.x](https://www.r-project.org/)
+* [R](https://www.r-project.org/)
 * [ape](http://ape-package.ird.fr/)
 
-# Related softwares and R packages
+# Programs that depend on rkftools
 * [RADTE](https://github.com/kfuku52/RADTE)
+
+# Programs that rkftools can process its outputs
+* [ape](http://ape-package.ird.fr/)
 * [l1ou](https://github.com/khabbazian/l1ou) 
 * [PhylogeneticEM](https://github.com/pbastide/PhylogeneticEM)
 * [NOTUNG](http://www.cs.cmu.edu/~durand/Notung/)
