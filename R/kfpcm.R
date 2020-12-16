@@ -239,7 +239,12 @@ get_tree_table = function(pcm_out, mode) {
 
 get_regime_table = function(pcm_out, mode) {
     if (mode=='l1ou') {
-        column_names = c("regime", "node_name", "param", colnames(pcm_out$Y))
+        if (is.null(colnames(pcm_out$Y))) {
+            cols = 'trait1'
+        } else {
+            cols = colnames(pcm_out$Y)
+        }
+        column_names = c("regime", "node_name", "param", cols)
         regime_table = data.frame(matrix(0,0,ncol(pcm_out$Y)+3))
         colnames(regime_table) = column_names
         shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)

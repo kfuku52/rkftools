@@ -23,7 +23,7 @@ get_duplication_confidence_score = function(phy, node_num) {
 
 get_species_overlap_score = function(phy, dc_cutoff=0) {
     # this function assumes that leaf names are: GENUS_SPECIES_GENEID (e.g. Bos_taurus_AF492351.1)
-    internal_nodes = (length(phy$tip.label)+1):(max(phy$edge))
+    internal_nodes = (length(phy[['tip.label']])+1):(max(phy[['edge']]))
     dc_scores = vector(mode='numeric', length(internal_nodes))
     i = 1
     for (int_node in internal_nodes) {
@@ -35,14 +35,14 @@ get_species_overlap_score = function(phy, dc_cutoff=0) {
 }
 
 get_root_position_dependent_species_overlap_scores = function(phy, nslots) {
-    species_overlap_scores = vector(mode="numeric", nrow(phy$edge))
+    species_overlap_scores = vector(mode="numeric", nrow(phy[['edge']]))
     exp_funs = c('reroot', "get_species_overlap_score", "get_duplication_confidence_score",
                 "get_children_num", "get_tip_labels")
-    num_parallel = min(nslots, nrow(phy$edge))
+    num_parallel = min(nslots, nrow(phy[['edge']]))
     cluster = makeCluster(num_parallel, 'PSOCK', outfile='')
     registerDoParallel(cluster)
-    so_score = foreach (i = 1:nrow(phy$edge), .combine=c, .export=exp_funs) %dopar% {
-        rt = reroot(tree=phy, node.number=phy$edge[i,2])
+    so_score = foreach (i = 1:nrow(phy[['edge']]), .combine=c, .export=exp_funs) %dopar% {
+        rt = reroot(tree=phy, node.number=phy[['edge']][i,2])
         so_score = get_species_overlap_score(phy=rt, dc_cutoff=0)
         names(so_score) = i
         so_score

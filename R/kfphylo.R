@@ -5,26 +5,26 @@
 
 
 get_node_num_by_name = function(phy, node_name) {
-    node_names = c(phy$tip.label, phy$node.label)
+    node_names = c(phy[['tip.label']], phy$node.label)
     node_nums = 1:length(node_names)
     node_num = node_nums[node_names %in% node_name]
     return(node_num)
 }
 
 get_node_name_by_num = function(phy, node_num) {
-    node_names = c(phy$tip.label, phy$node.label)
+    node_names = c(phy[['tip.label']], phy$node.label)
     node_nums = 1:length(node_names)
     node_name = node_names[node_nums %in% node_num]
     return(node_name)
 }
 
 get_root_num = function(phy) {
-    root_num = setdiff(phy$edge[,1], phy$edge[,2])
+    root_num = setdiff(phy[['edge']][,1], phy[['edge']][,2])
     return(root_num)
 }
 
 get_children_num = function(phy, node_num) {
-    children_num = phy$edge[(phy$edge[,1]==node_num),2]
+    children_num = phy[['edge']][(phy[['edge']][,1]==node_num),2]
     return(children_num)
 }
 
@@ -47,13 +47,13 @@ get_descendent_num = function(phy, node_num) {
 }
 
 get_parent_num = function(phy, node_num) {
-    parent_num = phy$edge[(phy$edge[,2]==node_num),1]
+    parent_num = phy[['edge']][(phy[['edge']][,2]==node_num),1]
     return(parent_num)
 }
 
 get_sister_num = function(phy, node_num) {
-    parent_num = phy$edge[(phy$edge[,2]==node_num),1]
-    sibling_num = phy$edge[(phy$edge[,1]==parent_num),2]
+    parent_num = phy[['edge']][(phy[['edge']][,2]==node_num),1]
+    sibling_num = phy[['edge']][(phy[['edge']][,1]==parent_num),2]
     sister_num = sibling_num[sibling_num!=node_num]
     return(sister_num)
 }
@@ -131,12 +131,12 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
 }
 
 get_tip_labels = function(phy, node_num, out=NULL) {
-    num_leaf = length(phy$tip.label)
+    num_leaf = length(phy[['tip.label']])
     if (node_num > num_leaf) {
         subtree = ape::extract.clade(phy, node_num)
         tip_labels = subtree$tip.label
     } else {
-        tip_labels = phy$tip.label[node_num]
+        tip_labels = phy[['tip.label']][node_num]
     }
     return(tip_labels)
 }
@@ -166,7 +166,7 @@ get_node_age = function(phy, node_num) {
     while (!is.na(current_node_num)) {
         descendent_node_num = get_children_num(phy, current_node_num)[1]
         if (!is.na(descendent_node_num)) {
-            edge_length = phy$edge.length[(phy$edge[,1]==current_node_num)&(phy$edge[,2]==descendent_node_num)]
+            edge_length = phy[['edge']].length[(phy[['edge']][,1]==current_node_num)&(phy[['edge']][,2]==descendent_node_num)]
             age = age + edge_length
         }
         current_node_num = descendent_node_num
@@ -176,7 +176,7 @@ get_node_age = function(phy, node_num) {
 
 get_outgroup = function(phy) {
     children_nums = get_children_num(phy, get_root_num(phy))
-    outgroup_labels = phy$tip.label
+    outgroup_labels = phy[['tip.label']]
     for (cn in children_nums) {
         og_labels = get_tip_labels(phy, cn)
         if (length(outgroup_labels)>length(og_labels)) {
@@ -442,7 +442,7 @@ get_species_name = function(a) {
 }
 
 get_species_names = function(phy, sep='_') {
-    split_names = strsplit(phy$tip.label, sep)
+    split_names = strsplit(phy[['tip.label']], sep)
     species_names = c()
     for (sn in split_names) {
         species_names = c(species_names, paste0(sn[1], sep, sn[2]))
@@ -546,35 +546,35 @@ get_single_branch_tree = function(name, dist) {
 
 remove_redundant_root_edge = function(phy) {
     root_num = get_root_num(phy)
-    is_root_edge = (phy$edge[,1]!=root_num)
-    phy$edge = phy$edge[is_root_edge,]
-    phy$edge[phy$edge>root_num] = phy$edge[phy$edge>root_num] - 1
-    phy$edge.length = phy$edge.length[is_root_edge]
+    is_root_edge = (phy[['edge']][,1]!=root_num)
+    phy[['edge']] = phy[['edge']][is_root_edge,]
+    phy[['edge']][phy[['edge']]>root_num] = phy[['edge']][phy[['edge']]>root_num] - 1
+    phy[['edge']].length = phy[['edge']].length[is_root_edge]
     phy$Nnode = phy$Nnode - 1
     return(phy)
 }
 
 table2phylo = function(df, name_col, dist_col) {
-    root_id = max(df$numerical_label)
-    df[(df$numerical_label==root_id), 'sister'] = -999
-    df[(df$numerical_label==root_id), 'parent'] = -999
-    root_name = df[(df$numerical_label==root_id), name_col]
-    root_dist = df[(df$numerical_label==root_id), dist_col]
+    root_id = max(df[,'numerical_label'])
+    df[(df[,'numerical_label']==root_id), 'sister'] = -999
+    df[(df[,'numerical_label']==root_id), 'parent'] = -999
+    root_name = df[(df[,'numerical_label']==root_id), name_col]
+    root_dist = df[(df[,'numerical_label']==root_id), dist_col]
     phy = get_single_branch_tree(root_name, root_dist)
     next_node_ids = sort(df[(df$parent==root_id),'numerical_label'])
     while (length(next_node_ids)>0) {
         for (nni in next_node_ids) {
-            nni_name = df[(df$numerical_label==nni), name_col]
-            nni_dist = df[(df$numerical_label==nni), dist_col]
-            parent_id = df[(df$numerical_label==nni), 'parent']
-            parent_name = df[(df$numerical_label==parent_id), name_col]
+            nni_name = df[(df[,'numerical_label']==nni), name_col]
+            nni_dist = df[(df[,'numerical_label']==nni), dist_col]
+            parent_id = df[(df[,'numerical_label']==nni), 'parent']
+            parent_name = df[(df[,'numerical_label']==parent_id), name_col]
             parent_num = get_node_num_by_name(phy, parent_name)
-            parent_index = (1:nrow(phy$edge))[phy$edge[,2]==parent_num]
-            sister_id = df[(df$numerical_label==nni), 'sister']
-            sister_name = df[(df$numerical_label==sister_id), name_col]
-            sister_dist = df[(df$numerical_label==sister_id), dist_col]
+            parent_index = (1:nrow(phy[['edge']]))[phy[['edge']][,2]==parent_num]
+            sister_id = df[(df[,'numerical_label']==nni), 'sister']
+            sister_name = df[(df[,'numerical_label']==sister_id), name_col]
+            sister_dist = df[(df[,'numerical_label']==sister_id), dist_col]
             sister_num = get_node_num_by_name(phy, sister_name)
-            sister_index = (1:nrow(phy$edge))[phy$edge[,2]==sister_num]
+            sister_index = (1:nrow(phy[['edge']]))[phy[['edge']][,2]==sister_num]
             branch = get_single_branch_tree(nni_name, nni_dist)
             if (length(parent_num)==0) {
                 sister_dist = ifelse(sister_dist<1e-8, 1e-8, sister_dist)
@@ -590,21 +590,21 @@ table2phylo = function(df, name_col, dist_col) {
     }
     phy = remove_redundant_root_edge(phy)
     phy = ape::ladderize(phy, right=TRUE)
-    num_leaf = length(phy$tip.label)
-    num_intnode = nrow(phy$edge) - length(phy$tip.label)
+    num_leaf = length(phy[['tip.label']])
+    num_intnode = nrow(phy[['edge']]) - length(phy[['tip.label']])
     phy$node.label = rep('placeholder', num_intnode)
-    next_node_ids = sort(df[(df[[name_col]] %in% phy$tip.label), 'numerical_label'])
+    next_node_ids = sort(df[(df[[name_col]] %in% phy[['tip.label']]), 'numerical_label'])
     while ((length(next_node_ids)!=1)|(next_node_ids[1]>=0)) {
         tmp_next_node_ids = c()
         for (nni in next_node_ids) {
             if (nni>=0) {
-                nni_name = df[(df$numerical_label==nni), name_col]
-                nni_num = (1:max(phy$edge))[c(phy$tip.label, phy$node.label)==nni_name]
-                parent_num = phy$edge[(phy$edge[,2]==nni_num),1]
+                nni_name = df[(df[,'numerical_label']==nni), name_col]
+                nni_num = (1:max(phy[['edge']]))[c(phy[['tip.label']], phy$node.label)==nni_name]
+                parent_num = phy[['edge']][(phy[['edge']][,2]==nni_num),1]
                 parent_label_index = parent_num - num_leaf
-                parent_id = df[(df$numerical_label==nni), 'parent']
+                parent_id = df[(df[,'numerical_label']==nni), 'parent']
                 if (parent_id>=0) {
-                    parent_name = df[(df$numerical_label==parent_id), name_col]
+                    parent_name = df[(df[,'numerical_label']==parent_id), name_col]
                     phy$node.label[parent_label_index] = parent_name
                     tmp_next_node_ids = c(tmp_next_node_ids, parent_id)
                 }
