@@ -166,7 +166,7 @@ get_node_age = function(phy, node_num) {
     while (!is.na(current_node_num)) {
         descendent_node_num = get_children_num(phy, current_node_num)[1]
         if (!is.na(descendent_node_num)) {
-            edge_length = phy[['edge']].length[(phy[['edge']][,1]==current_node_num)&(phy[['edge']][,2]==descendent_node_num)]
+            edge_length = phy[['edge.length']][(phy[['edge']][,1]==current_node_num)&(phy[['edge']][,2]==descendent_node_num)]
             age = age + edge_length
         }
         current_node_num = descendent_node_num
@@ -549,7 +549,7 @@ remove_redundant_root_edge = function(phy) {
     is_root_edge = (phy[['edge']][,1]!=root_num)
     phy[['edge']] = phy[['edge']][is_root_edge,]
     phy[['edge']][phy[['edge']]>root_num] = phy[['edge']][phy[['edge']]>root_num] - 1
-    phy[['edge']].length = phy[['edge']].length[is_root_edge]
+    phy[['edge.length']] = phy[['edge.length']][is_root_edge]
     phy$Nnode = phy$Nnode - 1
     return(phy)
 }
