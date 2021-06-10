@@ -6,8 +6,8 @@
 remove_invariant_traits = function(trait_table, small_dif=0.001) {
     is_small_dif = c()
     for (i in 1:length(trait_table)) {
-        trait_min = min(trait_table[,i])
-        trait_max = max(trait_table[,i])
+        trait_min = min(trait_table[,i], na.rm=TRUE)
+        trait_max = max(trait_table[,i], na.rm=TRUE)
         is_small_dif = c(is_small_dif, trait_max - trait_min < small_dif)
     }
     removed_traits = original_traits[is_small_dif]
@@ -18,6 +18,39 @@ remove_invariant_traits = function(trait_table, small_dif=0.001) {
     }
     trait_table = trait_table[,!is_small_dif]
     out = list(trait_table=trait_table, removed_traits=removed_traits)
+    return(out)
+}
+
+merge_replicates = function(trait_table, replicate_sep) {
+    if (replicate_sep=='') {
+        return(trait_table)
+    }
+    without_reps = c()
+    for (col in colnames(trait_table)) {
+        split = strsplit(col, replicate_sep)[[1]]
+        num_split = length(split)
+        if (num_split == 1) {
+            without_rep = split
+        } else if (num_split > 1) {
+            without_rep = split[1:(num_split-1)]
+        }
+        without_reps = c(without_reps, without_rep)
+    }
+    if (length(unique(without_reps))==ncol(trait_table)) {
+        cat(paste0('No replicate was found with --replicate_sep="', replicate_sep, '"\n'))
+        return(trait_table)
+    } else {
+        cat(paste0('Replicates were found with --replicate_sep="', replicate_sep, '". Mean values will be used.\n'))
+    }
+    new_cols = unique(without_reps)
+    out = data.frame(matrix(ncol=length(new_cols), nrow=nrow(trait_table)))
+    colnames(out) = new_cols
+    rownames(out) = rownames(trait_table)
+    for (new_col in colnames(out)) {
+        is_col = startsWith(colnames(trait_table), new_col)
+        values = apply(trait_table[,is_col], 1, function(x){mean(x, na.rm=TRUE)})
+        out[,new_col] = values
+    }
     return(out)
 }
 
