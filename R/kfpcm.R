@@ -541,3 +541,38 @@ restore_imputed_leaves = function(leaf_table, original_trait_table) {
     }
     return(leaf_table)
 }
+
+get_placeholder_leaf = function(tree, original_trait_table) {
+    out = data.frame()
+    params = c('Y', 'optima', 'mu', 'residuals')
+    for (param in params) {
+        tmp = data.frame(
+            regime=rep(0,nrow(original_trait_table)),
+            leaf=rownames(original_trait_table),
+            param=param
+        )
+        tmp = cbind(tmp, original_trait_table)
+        rownames(tmp) = NULL
+        out = rbind(out, tmp)
+    }
+    return(out)
+}
+
+get_placeholder_regime = function(tree, original_trait_table) {
+    out = data.frame()
+    params = c('alpha', 'sigma2', 'intercept', 'log_likelihood')
+    for (param in params) {
+        tmp = c(NA, NA, param, rep(NA, ncol(original_trait_table)))
+        out = rbind(out, tmp)
+    }
+    colnames(out) = c('regime', 'node_name', 'param', colnames(original_trait_table))
+    return(out)
+}
+
+get_placeholder_tree = function(tree, original_trait_table) {
+    out = data.frame()
+    params = c('num_shift','num_regime','num_conv_regime','num_uniq_regime','num_species','num_leaf','model_score')
+    out = rbind(out, rep(0, length(params)))
+    colnames(out) = params
+    return(out)
+}
