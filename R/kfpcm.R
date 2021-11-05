@@ -349,7 +349,7 @@ get_leaf_regimes = function(pcm_out, mode) {
     if (mode=='l1ou') {
         tree = pcm_out$tree
         shift_nodes = c()
-        leaf_regimes = data.frame(regime=0, leaf=rownames(pcm_out$Y))
+        leaf_regimes = data.frame(regime=0, label=rownames(pcm_out$Y))
         shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
         if ((length(shift_conf)>0)&(is.null(names(shift_conf)))) {
             names(shift_conf) = 1:length(shift_conf)
@@ -359,7 +359,7 @@ get_leaf_regimes = function(pcm_out, mode) {
             regime = ifelse(is.null(names(shift_conf)[shift_conf==node_index]), 1, names(shift_conf)[shift_conf==node_index])
             for (subtree in subtrees(tree)) {
                 if (subtree$node.label[1]==node_name) {
-                    table_leaves = as.character(leaf_regimes$leaf)
+                    table_leaves = as.character(leaf_regimes$label)
                     subtree_leaves = as.character(subtree$tip.label)
                     leaf_regimes[table_leaves %in% subtree_leaves, "regime"] = regime
                     break
@@ -367,7 +367,7 @@ get_leaf_regimes = function(pcm_out, mode) {
             }
             for (leaf in tree$tip.label) {
                 if (leaf==node_name) {
-                    leaf_regimes[leaf_regimes$leaf==leaf, "regime"] = regime
+                    leaf_regimes[leaf_regimes$label==leaf, "regime"] = regime
                     break
                 }
             }
@@ -389,7 +389,7 @@ get_leaf_regimes = function(pcm_out, mode) {
             regime = ifelse(is.null(names(shift_conf)[shift_conf==node_index]), 1, names(shift_conf)[shift_conf==node_index])
             for (subtree in subtrees(tree)) {
                 if (subtree$node.label[1]==node_name) {
-                    table_leaves = as.character(leaf_regimes$leaf)
+                    table_leaves = as.character(leaf_regimes$label)
                     subtree_leaves = as.character(subtree$tip.label)
                     leaf_regimes[table_leaves %in% subtree_leaves, "regime"] = regime
                     break
@@ -397,7 +397,7 @@ get_leaf_regimes = function(pcm_out, mode) {
             }
             for (leaf in tree$tip.label) {
                 if (leaf==node_name) {
-                    leaf_regimes[leaf_regimes$leaf==leaf, "regime"] = regime
+                    leaf_regimes[leaf_regimes$label==leaf, "regime"] = regime
                     break
                 }
             }
@@ -532,10 +532,10 @@ leaf_table_collapse2original = function(leaf_table, tree_original, tree_collapse
 
 restore_imputed_leaves = function(leaf_table, original_trait_table) {
     traits = colnames(original_trait_table)
-    leaf_names = leaf_table$leaf
+    leaf_names = leaf_table$label
     for (leaf_name in leaf_names) {
         if (leaf_name %in% rownames(original_trait_table)) {
-            conditions = ((leaf_table$leaf==leaf_name)&(leaf_table$param=='imputed'))
+            conditions = ((leaf_table$label==leaf_name)&(leaf_table$param=='imputed'))
             leaf_table[conditions, traits] = original_trait_table[leaf_name, traits]
         }
     }
@@ -548,7 +548,7 @@ get_placeholder_leaf = function(tree, original_trait_table) {
     for (param in params) {
         tmp = data.frame(
             regime=rep(0,nrow(original_trait_table)),
-            leaf=rownames(original_trait_table),
+            label=rownames(original_trait_table),
             param=param
         )
         tmp = cbind(tmp, original_trait_table)
