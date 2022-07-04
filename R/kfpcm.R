@@ -34,6 +34,9 @@ merge_replicates = function(trait_table, replicate_sep) {
         } else if (num_split > 1) {
             without_rep = split[1:(num_split-1)]
         }
+        if (length(without_rep)>1) {
+            cat(col, without_rep, '\n')
+        }
         without_reps = c(without_reps, without_rep)
     }
     if (length(unique(without_reps))==ncol(trait_table)) {
@@ -47,8 +50,12 @@ merge_replicates = function(trait_table, replicate_sep) {
     colnames(out) = new_cols
     rownames(out) = rownames(trait_table)
     for (new_col in colnames(out)) {
-        is_col = startsWith(colnames(trait_table), new_col)
-        values = apply(trait_table[,is_col], 1, function(x){mean(x, na.rm=TRUE)})
+        is_col = startsWith(colnames(trait_table), paste0(new_col, replicate_sep))
+        if (sum(is_col)==1) {
+            values = trait_table[,is_col]
+        } else {
+            values = apply(trait_table[,is_col], 1, function(x){mean(x, na.rm=TRUE)})
+        }
         out[,new_col] = values
     }
     return(out)
