@@ -28,11 +28,18 @@ get_children_num = function(phy, node_num) {
     return(children_num)
 }
 
-get_descendent_num = function(phy, node_num) {
+is_root = function(phy, node_num) {
+    root_num = get_root_num(phy)
+    return(node_num==root_num)
+}
+
+is_leaf = function(phy, node_num) {
+    return(node_num <= length(phy[['tip.label']]))
+} 
+
+get_descendent_num = function(phy, node_num, leaf_only=FALSE) {
     descendent_nums = c()
     children_nums = get_children_num(phy, node_num)
-    current_size = length(children_nums)
-    next_size = current_size + 1
     while(!all(is.na(children_nums))) {
         children_nums = children_nums[!is.na(children_nums)]
         descendent_nums = c(descendent_nums, children_nums)
@@ -43,6 +50,9 @@ get_descendent_num = function(phy, node_num) {
         children_nums = childrens
     }
     descendent_nums = sort(descendent_nums)
+    if (leaf_only) {
+        descendent_nums = descendent_nums[descendent_nums <= length(phy[['tip.label']])]
+    }
     return(descendent_nums)
 }
 
@@ -278,7 +288,7 @@ MAD <- function(unrooted_newick,output_mode){
         t<-unroot(t)
     }
     #t$node.label<-NULL #To allow parsing when identical OTUs are present
-    if(!is.binary.tree(t)){
+    if(!is.binary(t)){
         warning("Input tree is not binary! Internal multifurcations will be converted to branches of length zero and identical OTUs will be collapsed!")
         t<-multi2di(t)
     }
@@ -417,6 +427,153 @@ MAD <- function(unrooted_newick,output_mode){
     }
 }
 
+MAD_parallel = function(unrooted_newick, output_mode, ncpu) {
+    # Load necessary libraries
+    if (!requireNamespace('ape', quietly = TRUE)) stop("'ape' package not found, please install it to run MAD")
+    if (!requireNamespace('phytools', quietly = TRUE)) stop("'phytools' package not found, please install it to run MAD")
+    if (!requireNamespace('foreach', quietly = TRUE)) stop("'foreach' package not found, please install it to run MAD")
+    if (!requireNamespace('doParallel', quietly = TRUE)) stop("'doParallel' package not found, please install it to run MAD")
+    
+    library(ape)
+    library(phytools)
+    library(foreach)
+    library(doParallel)
+    
+    # Initialize tree object
+    t = if (class(unrooted_newick) == "phylo") unrooted_newick else read.tree(text = unrooted_newick)
+    if (is.rooted(t)) t = unroot(t)
+    if (!is.binary(t)) t = multi2di(t)
+    t$edge.length[t$edge.length < 0] = 0
+    
+    # Precompute distances
+    notu = length(t$tip.label)
+    nbranch = dim(t$edge)[1]
+    dis = dist.nodes(t)
+    sdis = dis[1:notu, 1:notu]
+    
+    # Recursively handle identical OTUs
+    ii = which(sdis == 0, arr.ind = TRUE)
+    k = which(ii[, 1] != ii[, 2])
+    if (length(k)) {
+        r = ii[k[1], 1]
+        c = ii[k[1], 2]
+        vv = c(paste('@#', t$tip.label[r], '@#', sep = ""), paste('(', t$tip.label[r], ':0,', t$tip.label[c], ':0)', sep = ""))
+        st = drop.tip(t, c)
+        st$tip.label[st$tip.label == t$tip.label[r]] = vv[1]
+        res = MAD_parallel(st, output_mode, ncpu)
+        if (is.list(res)) {
+            res[[1]] = sub(vv[1], vv[2], res[[1]])
+        } else {
+            res = sub(vv[1], vv[2], res)
+        }
+        return(res)
+    }
+    
+    # Setup for parallel processing
+    t2 = t
+    t2$edge.length = rep(1, nbranch)
+    disbr = dist.nodes(t2)
+    sdisbr = disbr[1:notu, 1:notu]
+    nodeids = 1:(nbranch + 1)
+    otuids = 1:notu
+    npairs = notu * (notu - 1) / 2
+    rho = numeric(nbranch)
+    bad = numeric(nbranch)
+    i2p = matrix(nrow = nbranch + 1, ncol = notu)
+    
+    # Register parallel backend
+    cl = makeCluster(ncpu)
+    registerDoParallel(cl)
+    
+    results = foreach(br = 1:nbranch, .combine = rbind, .packages = c('ape', 'phytools')) %dopar% {
+        dij = t$edge.length[br]
+        if (dij == 0) return(c(NA, NA))
+        
+        rbca = numeric(npairs)
+        i = t$edge[br, 1]
+        j = t$edge[br, 2]
+        sp = dis[1:notu, i] < dis[1:notu, j]
+        dbc = matrix(sdis[sp, !sp], nrow = sum(sp), ncol = sum(!sp))
+        dbi = replicate(dim(dbc)[2], dis[(1:notu)[sp], i])
+        rho_br = sum((dbc - 2 * dbi) * dbc^-2) / (2 * dij * sum(dbc^-2))
+        rho_br = min(max(0, rho_br), 1)
+        dab = dbi + (dij * rho_br)
+        ndab = length(dab)
+        rbca[1:ndab] = as.vector(2 * dab / dbc - 1)
+        
+        bcsp = rbind(sp, !sp)
+        ij = c(i, j)
+        counter = ndab
+        for (w in c(1, 2)) {
+            if (sum(bcsp[w, ]) >= 2) {
+                disbrw = disbr[, ij[w]]
+                pairids = otuids[bcsp[w, ]]
+                for (z in pairids) {
+                    i2p[, z] = disbr[z, ] + disbrw == disbrw[z]
+                }
+                for (z in 1:(length(pairids) - 1)) {
+                    p1 = pairids[z]
+                    disp1 = dis[p1, ]
+                    pan = nodeids[i2p[, p1]]
+                    for (y in (z + 1):length(pairids)) {
+                        p2 = pairids[y]
+                        pan1 = pan[i2p[pan, p2]]
+                        an = pan1[which.max(disbrw[pan1])]
+                        counter = counter + 1
+                        rbca[counter] = 2 * disp1[an] / disp1[p2] - 1
+                    }
+                }
+            }
+        }
+        bad_br = sqrt(mean(rbca^2))
+        return(c(rho_br, bad_br))
+    }
+    
+    stopCluster(cl)
+    
+    rho = results[, 1]
+    bad = results[, 2]
+    
+    jj = sort(bad, index.return = TRUE)
+    tf = bad == jj$x[1]
+    tf[is.na(tf)] = FALSE
+    nroots = sum(tf)
+    if (nroots > 1) warning("More than one possible root position. Multiple newick strings printed")
+    madr = which(tf)
+    rai = jj$x[1] / jj$x[2]
+    badr = bad[tf]
+    
+    rt = vector("list", nroots)
+    ccv = numeric(nroots)
+    rooted_newick = character(nroots)
+    
+    for (i in 1:length(madr)) {
+        out = get_rooted_newick(t, madr[i], rho)
+        rooted_newick[i] = out[[1]]
+        rt[[i]] = out[[2]]
+        ccv[i] = out[[3]]
+    }
+    
+    rooted_newick = sub(')Root;', ');', rooted_newick)
+    
+    if (missing(output_mode)) {
+        return(rooted_newick)
+    } else if (output_mode == 'newick') {
+        return(rooted_newick)
+    } else if (output_mode == 'stats') {
+        root_stats = data.frame(ambiguity_index = rai, clock_cv = ccv, ancestor_deviation = badr, n_roots = nroots)
+        return(list(rooted_newick, root_stats))
+    } else if (output_mode == 'full') {
+        root_stats = data.frame(ambiguity_index = rai, clock_cv = ccv, ancestor_deviation = badr, n_roots = nroots)
+        return(list(rooted_newick, root_stats, t, madr, bad, rt))
+    } else if (output_mode == 'custom') {
+        root_stats = data.frame(ambiguity_index = rai, clock_cv = ccv, ancestor_deviation = badr, n_roots = nroots)
+        return(list(rooted_newick, root_stats, t, madr, bad, rt, rho))
+    } else {
+        return(rooted_newick)
+    }
+}
+
 transfer_node_labels = function(phy_from, phy_to) {
     for (t in 1:length(phy_to$node.label)) {
         to_node = phy_to$node.label[t]
@@ -436,8 +593,8 @@ transfer_node_labels = function(phy_from, phy_to) {
 }
 
 get_species_name = function(a) {
-    a = sub('_',' ',a)
-    a = sub('_.*','',a)
+    a = sub('_',' ', a)
+    a = sub('_.*','', a)
     return(a)
 }
 
@@ -450,7 +607,7 @@ get_species_names = function(phy, sep='_') {
     return(species_names)
 }
 
-leaf2species = function(leaf_names) {
+leaf2species = function(leaf_names, use_underbar=FALSE) {
     split = strsplit(leaf_names, '_')
     species_names = c()
     for (i in 1:length(split)) {
@@ -462,6 +619,9 @@ leaf2species = function(leaf_names) {
         } else {
             warning('leaf name could not be interpreted as genus_species_gene: ', split[[i]], '\n')
         }
+    }
+    if (use_underbar) {
+        species_names = gsub(' ', '_', species_names)
     }
     return(species_names)
 }
@@ -567,7 +727,7 @@ table2phylo = function(df, name_col, dist_col) {
             nni_name = df[(df[,'numerical_label']==nni), name_col]
             nni_dist = df[(df[,'numerical_label']==nni), dist_col]
             parent_id = df[(df[,'numerical_label']==nni), 'parent']
-            parent_name = df[(df[,'numerical_label']==parent_id), name_col]
+            parent_name = df[(df[,'numerical_label']==parent_id), name_col] 
             parent_num = get_node_num_by_name(phy, parent_name)
             parent_index = (1:nrow(phy[['edge']]))[phy[['edge']][,2]==parent_num]
             sister_id = df[(df[,'numerical_label']==nni), 'sister']

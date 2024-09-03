@@ -266,10 +266,10 @@ get_tree_table = function(pcm_out, mode) {
         pp = PhylogeneticEM::params_process(pcm_out)
         df = data.frame(matrix(NA,1,4))
         colnames(df) = c('num_shift','log_likelihood','num_species','num_leaf')
-        df$num_shift = ncol(pp[['shifts']][['values']])
-        df$log_likelihood = attr(pp, 'log_likelihood')
-        df$num_species = length(unique(suppressWarnings(leaf2species(leaf_names=pcm_out[['phylo']][['tip.label']]))))
-        df$num_leaf = length(pcm_out[['phylo']][['tip.label']])
+        df[['num_shift']] = ncol(pp[['shifts']][['values']])
+        df[['log_likelihood']] = attr(pp, 'log_likelihood')
+        df[['num_species']] = length(unique(suppressWarnings(leaf2species(leaf_names=pcm_out[['phylo']][['tip.label']]))))
+        df[['num_leaf']] = length(pcm_out[['phylo']][['tip.label']])
         tree_table = df
     } else {
         cat('mode "', mode, '" is not supported.\n')
@@ -354,27 +354,27 @@ get_regime_table = function(pcm_out, mode) {
 
 get_leaf_regimes = function(pcm_out, mode) {
     if (mode=='l1ou') {
-        tree = pcm_out$tree
+        tree = pcm_out[['tree']]
         shift_nodes = c()
-        leaf_regimes = data.frame(regime=0, label=rownames(pcm_out$Y))
-        shift_conf = sort(pcm_out$shift.configuration, decreasing=TRUE)
+        leaf_regimes = data.frame(regime=0, label=rownames(pcm_out[['Y']]))
+        shift_conf = sort(pcm_out[['shift.configuration']], decreasing=TRUE)
         if ((length(shift_conf)>0)&(is.null(names(shift_conf)))) {
             names(shift_conf) = 1:length(shift_conf)
         }
         for (node_index in shift_conf) {
-            node_name = get_node_name_by_num(phy=tree, node_num=tree$edge[node_index,2])
+            node_name = get_node_name_by_num(phy=tree, node_num=tree[['edge']][node_index,2])
             regime = ifelse(is.null(names(shift_conf)[shift_conf==node_index]), 1, names(shift_conf)[shift_conf==node_index])
             for (subtree in subtrees(tree)) {
-                if (subtree$node.label[1]==node_name) {
-                    table_leaves = as.character(leaf_regimes$label)
-                    subtree_leaves = as.character(subtree$tip.label)
+                if (subtree[['node.label']][1]==node_name) {
+                    table_leaves = as.character(leaf_regimes[['label']])
+                    subtree_leaves = as.character(subtree[['tip.label']])
                     leaf_regimes[table_leaves %in% subtree_leaves, "regime"] = regime
                     break
                 }
             }
-            for (leaf in tree$tip.label) {
+            for (leaf in tree[['tip.label']]) {
                 if (leaf==node_name) {
-                    leaf_regimes[leaf_regimes$label==leaf, "regime"] = regime
+                    leaf_regimes[(leaf_regimes[['label']]==leaf), "regime"] = regime
                     break
                 }
             }
@@ -383,28 +383,30 @@ get_leaf_regimes = function(pcm_out, mode) {
         tree = pcm_out[['phylo']]
         pp = PhylogeneticEM::params_process(pcm_out)
         shift_nodes = pp[['shifts']][['edges']]
-        leaf_regimes = data.frame(regime=0, leaf=tree$tip.label)
+        leaf_regimes = data.frame(regime=0, label=tree[['tip.label']])
         shift_conf = shift_nodes
         if (!is.null(shift_conf)) {
             if (is.null(names(shift_conf))) {
                 names(shift_conf) = 1:length(shift_conf)
             }
         }
-        shift_conf = shift_conf[order(tree$edge[shift_conf,1], decreasing=FALSE)]
+        shift_conf = shift_conf[order(tree[['edge']][shift_conf,1], decreasing=FALSE)]
         for (node_index in shift_conf) {
-            node_name = get_node_name_by_num(phy=tree, node_num=tree$edge[node_index,2])
+            node_name = get_node_name_by_num(phy=tree, node_num=tree[['edge']][node_index,2])
             regime = ifelse(is.null(names(shift_conf)[shift_conf==node_index]), 1, names(shift_conf)[shift_conf==node_index])
+            print(c(node_index, node_name, regime))
             for (subtree in subtrees(tree)) {
-                if (subtree$node.label[1]==node_name) {
-                    table_leaves = as.character(leaf_regimes$label)
-                    subtree_leaves = as.character(subtree$tip.label)
+                if (subtree[['node.label']][1]==node_name) {
+                    table_leaves = as.character(leaf_regimes[['label']])
+                    subtree_leaves = as.character(subtree[['tip.label']])
                     leaf_regimes[table_leaves %in% subtree_leaves, "regime"] = regime
                     break
                 }
             }
-            for (leaf in tree$tip.label) {
+            for (leaf in tree[['tip.label']]) {
                 if (leaf==node_name) {
-                    leaf_regimes[leaf_regimes$label==leaf, "regime"] = regime
+                    print(c(leaf, node_name))
+                    leaf_regimes[leaf_regimes[['label']]==leaf, "regime"] = regime
                     break
                 }
             }
@@ -417,7 +419,7 @@ get_leaf_regimes = function(pcm_out, mode) {
 
 get_leaf_table = function(pcm_out, mode) {
     if (mode=='l1ou') {
-        column_names = c("regime", "leaf", "param", colnames(pcm_out$Y))
+        column_names = c("regime", 'node_name', "param", colnames(pcm_out$Y))
         leaf_table = data.frame(matrix(0,0,ncol(pcm_out$Y)+3))
         colnames(leaf_table) = column_names
         leaf_regimes = get_leaf_regimes(pcm_out, mode)
@@ -444,14 +446,15 @@ get_leaf_table = function(pcm_out, mode) {
         params = c('imputed','expectations')
         num_param = length(params)
         df_leaf_regimes = get_leaf_regimes(pcm_out, mode='PhylogeneticEM')
-        regimes = df_leaf_regimes$regime
+        print(df_leaf_regimes)
+        regimes = df_leaf_regimes[['regime']]
         df = data.frame(matrix(NA, num_leaf*num_param, num_trait+3))
-        colnames(df) = c('regime','leaf','param', rownames(pcm_out[['Y_data']]))
+        colnames(df) = c('regime','node_name','param', rownames(pcm_out[['Y_data']]))
         ind_start = 1
         for (param in params) {
             ind_end = ind_start + num_leaf - 1
             df[ind_start:ind_end,'regime'] = regimes
-            df[ind_start:ind_end,'leaf'] = pcm_out[['phylo']][['tip.label']]
+            df[ind_start:ind_end,'node_name'] = pcm_out[['phylo']][['tip.label']]
             df[ind_start:ind_end,'param'] = param
             df[ind_start:ind_end,traits] = t(PhylogeneticEM::imputed_traits(pcm_out, trait=1:num_trait, where='tips', what=param))
             ind_start = ind_end + 1
@@ -513,7 +516,7 @@ regime_table_collapse2original = function(regime_table, tree_original, tree_coll
 
 leaf_table_collapse2original = function(leaf_table, tree_original, tree_collapsed, node_num_mapping) {
     num_leaf_original = length(tree_original$tip.label)
-    node_names_collapsed = unlist(unique(na.omit(leaf_table['leaf'])))
+    node_names_collapsed = unlist(unique(na.omit(leaf_table['node_name'])))
     params = unlist(unique(na.omit(leaf_table['param'])))
     df = data.frame()
     for (param in params) {
@@ -524,9 +527,9 @@ leaf_table_collapse2original = function(leaf_table, tree_original, tree_collapse
                 for (node_num_original in node_num_originals) {
                     if (node_num_original <= num_leaf_original) {
                         node_name_original = get_node_name_by_num(tree_original, node_num_original)
-                        conditions = (leaf_table['param']==param)&(leaf_table['leaf']==node_name_collapsed)
+                        conditions = (leaf_table['param']==param)&(leaf_table['node_name']==node_name_collapsed)
                         row = leaf_table[conditions,]
-                        row[,'leaf'] = node_name_original
+                        row[,'node_name'] = node_name_original
                         df = rbind(df, row)
                     }
                 }
@@ -582,4 +585,89 @@ get_placeholder_tree = function(tree, original_trait_table) {
     out = rbind(out, rep(0, length(params)))
     colnames(out) = params
     return(out)
+}
+
+sort_exp = function(exp, tree, col='gene_id') {
+    rownames(exp) = exp[,col]
+    exp = exp[tree[['tip.label']],]
+    exp[,col] = tree[['tip.label']]
+    rownames(exp) = NULL
+    return(exp)
+}
+
+phylogenetic_imputation = function(tree, trait_table) {
+    trait_table2 = cbind(species=rownames(trait_table), trait_table)
+    trait_table2 = sort_exp(trait_table2, tree, col='species')
+    num_missing = sum(is.na(trait_table2))
+    num_all = nrow(trait_table2) * ncol(trait_table2)
+    cat('Phylogenetic imputation with phylopars:', num_missing, '/', num_all, 'traits will be imputed.\n')
+    rp_out = Rphylopars::phylopars(tree=tree, trait_data=trait_table2, phylo_correlated=TRUE, pheno_correlated=TRUE)
+    imputed_matrix = data.frame(rp_out[['anc_recon']])
+    imputed_matrix = imputed_matrix[tree[['tip.label']],]
+    return(imputed_matrix)
+}
+
+get_expression_bases = function(trait_table, replicate_sep) {
+    without_reps = c()
+    for (col in colnames(trait_table)) {
+        split = strsplit(col, replicate_sep)[[1]]
+        num_split = length(split)
+        if (num_split == 1) {
+            without_rep = split
+        } else if (num_split > 1) {
+            without_rep = split[1:(num_split-1)]
+        }
+        without_reps = c(without_reps, without_rep)
+    }
+    out = unique(without_reps)
+    out = out[out!='gene']
+    return(out)
+}
+
+count_foreground_lineage = function(tree, trait) {
+    num_fg_lineage = list()
+    trait_cols = colnames(trait[2:length(trait)])
+    for (trait_col in trait_cols) {
+        if (!is.integer(trait[[trait_col]])) {
+            cat(trait_col, ': count_foreground_lineage() supports 0/1 traits. Returning NA.\n')
+            num_fg_lineage[[trait_col]] = NA
+            next
+        }
+        fg_spp = trait[(trait[[trait_col]]==1),'species']
+        fg_tip_nums = get_node_num_by_name(phy=tree, node_name=fg_spp)
+        node_nums = 1:max(tree[['edge']])
+        is_fg_only_clade = rep(NA, length(node_nums))
+        for (node_num in node_nums) {
+            if (node_num <= length(tree[['tip.label']])) {
+                clade_leaf_nums = node_num
+            } else {
+                clade_leaf_nums = get_descendent_num(phy=tree, node_num=node_num, leaf_only=TRUE)
+            }
+            is_all_leaf_fg = all(clade_leaf_nums %in% fg_tip_nums)
+            is_fg_only_clade[node_num] = is_all_leaf_fg
+        }
+        stopifnot(!any(is.na(is_fg_only_clade)))
+        is_fg_stem = rep(NA, length(node_nums))
+        for (node_num in node_nums) {
+            is_node_fg = is_fg_only_clade[node_num]
+            if (is_root(phy=tree, node_num=node_num)) {
+                if (is_node_fg) {
+                    is_fg_stem[node_num] = TRUE
+                } else {
+                    is_fg_stem[node_num] = FALSE
+                }
+                next
+            }
+            parent_node_num = get_parent_num(phy=tree, node_num=node_num)
+            is_parent_bg = !is_fg_only_clade[parent_node_num]
+            if (is_node_fg & is_parent_bg) {
+                is_fg_stem[node_num] = TRUE
+            } else {
+                is_fg_stem[node_num] = FALSE
+            }
+        }
+        stopifnot(!any(is.na(is_fg_only_clade)))
+        num_fg_lineage[[trait_col]] = sum(is_fg_stem)
+    }
+    return(num_fg_lineage)
 }
