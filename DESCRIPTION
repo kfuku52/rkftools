@@ -3,8 +3,8 @@ Title: Tools for Evolutionary Biology
 Version: 0.1.0
 Authors@R: person("Kenji", "Fukushima", email = "kfuku52@gmail.com", role = c("aut", "cre"))
 Description: This R package contains various tools to handle data in evolutionary biology.
-Depends: R (>= 3.4.1)
-License: BSD_3_clause + file LICENSE
+Depends: R (>= 4.3.3)
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
