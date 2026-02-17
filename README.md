@@ -1,4 +1,10 @@
 # Overview
+[![R-CMD-check](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml/badge.svg)](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml)
+[![Version](https://img.shields.io/badge/version-0.1.0-informational)](https://github.com/kfuku52/rkftools)
+[![R](https://img.shields.io/badge/R-%3E%3D%203.4.1-276DC3?logo=r)](https://www.r-project.org/)
+[![License](https://img.shields.io/badge/license-BSD_3--Clause-blue.svg)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/commits/master)
+
 This R package contains various tools to handle data in evolutionary biology.
 
 # Dependency
