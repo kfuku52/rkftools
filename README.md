@@ -4,6 +4,10 @@
 [![R](https://img.shields.io/badge/R-%3E%3D%204.3.3-276DC3?logo=r)](https://www.r-project.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Last commit](https://img.shields.io/github/last-commit/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/commits/master)
+[![GitHub issues](https://img.shields.io/github/issues/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/pulls)
+[![GitHub stars](https://img.shields.io/github/stars/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/network/members)
 
 This R package contains various tools to handle data in evolutionary biology.
 
