@@ -713,6 +713,62 @@ remove_redundant_root_edge = function(phy) {
     return(out_phy)
 }
 
+.table2phylo_is_parent_sentinel = function(values) {
+    if (is.factor(values)) {
+        values = as.character(values)
+    }
+    is_sentinel = is.na(values)
+    values_chr = trimws(as.character(values))
+    is_sentinel = is_sentinel | (values_chr == '')
+    suppressWarnings(values_num <- as.numeric(values_chr))
+    is_sentinel = is_sentinel | ((!is.na(values_num)) & (values_num == -999))
+    return(is_sentinel)
+}
+
+.table2phylo_normalize_dist_column = function(values) {
+    if (is.factor(values)) {
+        values = as.character(values)
+    }
+    if (is.character(values)) {
+        values = trimws(values)
+        values[values == ''] = NA_character_
+    }
+    suppressWarnings(as.numeric(values))
+}
+
+.table2phylo_detect_root_id = function(df, branch_col='branch_id', parent_col='parent') {
+    branch_ids = df[[branch_col]]
+    is_sentinel_parent = .table2phylo_is_parent_sentinel(df[[parent_col]])
+    sentinel_rows = which(is_sentinel_parent)
+    if (length(sentinel_rows) == 1) {
+        return(branch_ids[[sentinel_rows]])
+    }
+    if (length(sentinel_rows) > 1) {
+        sentinel_ids = unique(as.character(branch_ids[sentinel_rows]))
+        stop(
+            'Ambiguous root candidate(s) in table2phylo(): multiple sentinel-parent rows found for branch_id: ',
+            paste(sentinel_ids, collapse=', ')
+        )
+    }
+
+    branch_ids_chr = as.character(branch_ids)
+    referenced_parent_ids = as.character(df[[parent_col]][!is_sentinel_parent])
+    root_rows = which(!(branch_ids_chr %in% referenced_parent_ids))
+    if (length(root_rows) == 1) {
+        return(branch_ids[[root_rows]])
+    }
+    if (length(root_rows) == 0) {
+        stop(
+            'Unable to infer root in table2phylo(): no sentinel-parent row and no unreferenced parent candidate.'
+        )
+    }
+    root_ids = unique(as.character(branch_ids[root_rows]))
+    stop(
+        'Ambiguous root candidate(s) in table2phylo(): multiple unreferenced parent candidates found for branch_id: ',
+        paste(root_ids, collapse=', ')
+    )
+}
+
 .table2phylo_make_lookup = function(df, columns) {
     node_ids = as.character(df[['branch_id']])
     if (anyDuplicated(node_ids)) {
@@ -742,13 +798,17 @@ remove_redundant_root_edge = function(phy) {
     out_phy = phy
     nni_name = id2value(lookup, nni, name_col)
     nni_dist = id2value(lookup, nni, dist_col)
-    if (is.na(nni_name) || is.na(nni_dist)) {
+    if (is.na(nni_name) || trimws(as.character(nni_name)) == '' || is.na(nni_dist)) {
         stop('Missing branch metadata for node id: ', nni)
     }
 
     parent_id = id2value(lookup, nni, 'parent')
-    parent_name = id2value(lookup, parent_id, name_col)
-    parent_num = get_node_num_by_name(out_phy, parent_name)
+    if (.table2phylo_is_parent_sentinel(parent_id)) {
+        parent_num = integer(0)
+    } else {
+        parent_name = id2value(lookup, parent_id, name_col)
+        parent_num = get_node_num_by_name(out_phy, parent_name)
+    }
     sister_id = id2value(lookup, nni, 'sister')
     sister_name = id2value(lookup, sister_id, name_col)
     sister_dist = id2value(lookup, sister_id, dist_col)
@@ -814,7 +874,7 @@ remove_redundant_root_edge = function(phy) {
         for (nni in next_node_ids) {
             if (nni>=0) {
                 parent_id = id2value(lookup, nni, 'parent')
-                if (is.na(parent_id) || parent_id < 0) {
+                if (.table2phylo_is_parent_sentinel(parent_id)) {
                     next
                 }
                 nni_name = id2value(lookup, nni, name_col)
@@ -855,9 +915,14 @@ table2phylo = function(df, name_col, dist_col) {
         stop('Missing required columns in table2phylo(): ', paste(missing_cols, collapse=', '))
     }
 
-    root_id = max(df_local[,'branch_id'])
-    df_local[(df_local[,'branch_id']==root_id), 'sister'] = -999
-    df_local[(df_local[,'branch_id']==root_id), 'parent'] = -999
+    df_local[[dist_col]] = .table2phylo_normalize_dist_column(df_local[[dist_col]])
+    root_id = .table2phylo_detect_root_id(df_local, branch_col='branch_id', parent_col='parent')
+    is_root_row = (as.character(df_local[,'branch_id']) == as.character(root_id))
+    if (sum(is_root_row) != 1) {
+        stop('Failed to identify a unique root row in table2phylo().')
+    }
+    df_local[is_root_row, 'sister'] = -999
+    df_local[is_root_row, 'parent'] = -999
     lookup = .table2phylo_make_lookup(
         df=df_local,
         columns=unique(c(name_col, dist_col, 'parent', 'sister'))
@@ -865,8 +930,11 @@ table2phylo = function(df, name_col, dist_col) {
 
     root_name = .table2phylo_id2value(lookup, root_id, name_col)
     root_dist = .table2phylo_id2value(lookup, root_id, dist_col)
-    if (is.na(root_name) || is.na(root_dist)) {
+    if (is.na(root_name) || trimws(as.character(root_name)) == '') {
         stop('Failed to resolve root metadata in table2phylo().')
+    }
+    if (is.na(root_dist)) {
+        root_dist = 0
     }
     phy = get_single_branch_tree(root_name, root_dist)
 
