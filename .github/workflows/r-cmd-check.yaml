@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        r-version: ["4.3.3", "release"]
+        r-version: ["4.1", "4.2", "4.3", "release"]
     runs-on: ubuntu-latest
     name: R ${{ matrix.r-version }}
     steps:

@@ -18,6 +18,18 @@ mad_n1 = MAD_parallel(tr, output_mode="newick", ncpu=1)
 mad_auto = MAD_parallel(tr, output_mode="newick")
 stopifnot(length(mad_n1) == length(mad_auto))
 
+tbl = data.frame(
+    branch_id=c(1L, 2L, 3L),
+    parent=c(3L, 3L, -999L),
+    sister=c(2L, 1L, -999L),
+    label=c("A", "B", "Root"),
+    dist=c(0.1, 0.2, 0.0),
+    stringsAsFactors=FALSE
+)
+tbl_phy = table2phylo(tbl, name_col="label", dist_col="dist")
+stopifnot(inherits(tbl_phy, "phylo"))
+stopifnot(setequal(tbl_phy$tip.label, c("A", "B")))
+
 old_max_cores = getOption("rkftools.max_cores")
 options(rkftools.max_cores=1L)
 mad_auto_capped = MAD_parallel(tr, output_mode="newick")

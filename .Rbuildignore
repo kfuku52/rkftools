@@ -4,3 +4,5 @@
 ^\.DS_Store$
 ^\.idea$
 ^R/\.ipynb_checkpoints$
+^\.github$
+^\.github/

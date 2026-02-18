@@ -714,9 +714,9 @@ remove_redundant_root_edge = function(phy) {
 }
 
 .table2phylo_make_lookup = function(df, columns) {
-    node_ids = as.character(df[['numerical_label']])
+    node_ids = as.character(df[['branch_id']])
     if (anyDuplicated(node_ids)) {
-        stop('Duplicate numerical_label values detected in table2phylo().')
+        stop('Duplicate branch_id values detected in table2phylo().')
     }
     lookup = list()
     for (column_name in columns) {
@@ -775,7 +775,7 @@ remove_redundant_root_edge = function(phy) {
 
 .table2phylo_build_edges = function(df, lookup, phy, root_id, name_col, dist_col, id2value, max_iter) {
     out_phy = phy
-    next_node_ids = sort(df[(df$parent==root_id),'numerical_label'])
+    next_node_ids = sort(df[(df$parent==root_id),'branch_id'])
     iter = 0L
     while (length(next_node_ids)>0) {
         iter = iter + 1L
@@ -788,7 +788,7 @@ remove_redundant_root_edge = function(phy) {
                 name_col=name_col, dist_col=dist_col, id2value=id2value
             )
         }
-        next_node_ids = sort(unique(df[(df$parent %in% next_node_ids),'numerical_label']))
+        next_node_ids = sort(unique(df[(df$parent %in% next_node_ids),'branch_id']))
     }
     return(out_phy)
 }
@@ -796,11 +796,14 @@ remove_redundant_root_edge = function(phy) {
 .table2phylo_assign_node_labels = function(df, lookup, phy, name_col, id2value, max_iter) {
     out_phy = phy
     num_leaf = length(out_phy[['tip.label']])
-    num_intnode = nrow(out_phy[['edge']]) - length(out_phy[['tip.label']])
+    num_intnode = as.integer(out_phy[['Nnode']])
+    if (length(num_intnode) != 1 || is.na(num_intnode) || num_intnode < 0) {
+        num_intnode = max(out_phy[['edge']]) - num_leaf
+    }
     out_phy$node.label = rep('placeholder', num_intnode)
-    node_ids = seq_len(max(out_phy[['edge']]))
+    node_ids = seq_len(num_leaf + num_intnode)
 
-    next_node_ids = sort(df[(df[[name_col]] %in% out_phy[['tip.label']]), 'numerical_label'])
+    next_node_ids = sort(df[(df[[name_col]] %in% out_phy[['tip.label']]), 'branch_id'])
     iter = 0L
     while (!(length(next_node_ids)==1 && next_node_ids[1] < 0)) {
         iter = iter + 1L
@@ -810,6 +813,10 @@ remove_redundant_root_edge = function(phy) {
         tmp_next_node_ids = integer(0)
         for (nni in next_node_ids) {
             if (nni>=0) {
+                parent_id = id2value(lookup, nni, 'parent')
+                if (is.na(parent_id) || parent_id < 0) {
+                    next
+                }
                 nni_name = id2value(lookup, nni, name_col)
                 nni_num = node_ids[c(out_phy[['tip.label']], out_phy$node.label)==nni_name]
                 if (length(nni_num) != 1) {
@@ -823,12 +830,9 @@ remove_redundant_root_edge = function(phy) {
                 if (parent_label_index < 1 || parent_label_index > length(out_phy$node.label)) {
                     stop('Parent label index out of range for node id: ', nni)
                 }
-                parent_id = id2value(lookup, nni, 'parent')
-                if (parent_id>=0) {
-                    parent_name = id2value(lookup, parent_id, name_col)
-                    out_phy$node.label[parent_label_index] = parent_name
-                    tmp_next_node_ids = c(tmp_next_node_ids, parent_id)
-                }
+                parent_name = id2value(lookup, parent_id, name_col)
+                out_phy$node.label[parent_label_index] = parent_name
+                tmp_next_node_ids = c(tmp_next_node_ids, parent_id)
             }
         }
         next_node_ids = sort(unique(tmp_next_node_ids))
@@ -845,15 +849,15 @@ remove_redundant_root_edge = function(phy) {
 
 table2phylo = function(df, name_col, dist_col) {
     df_local = df
-    required_cols = unique(c('numerical_label', 'parent', 'sister', name_col, dist_col))
+    required_cols = unique(c('branch_id', 'parent', 'sister', name_col, dist_col))
     missing_cols = required_cols[!(required_cols %in% colnames(df_local))]
     if (length(missing_cols) > 0) {
         stop('Missing required columns in table2phylo(): ', paste(missing_cols, collapse=', '))
     }
 
-    root_id = max(df_local[,'numerical_label'])
-    df_local[(df_local[,'numerical_label']==root_id), 'sister'] = -999
-    df_local[(df_local[,'numerical_label']==root_id), 'parent'] = -999
+    root_id = max(df_local[,'branch_id'])
+    df_local[(df_local[,'branch_id']==root_id), 'sister'] = -999
+    df_local[(df_local[,'branch_id']==root_id), 'parent'] = -999
     lookup = .table2phylo_make_lookup(
         df=df_local,
         columns=unique(c(name_col, dist_col, 'parent', 'sister'))
