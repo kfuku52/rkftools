@@ -6,3 +6,4 @@
 ^R/\.ipynb_checkpoints$
 ^\.github$
 ^\.github/
+^LICENSE\.md$

@@ -185,6 +185,11 @@ get_root_position_dependent_species_overlap_scores = function(phy, nslots) {
 }
 
 read_notung_parsable = function(file, mode='D') {
+    mode = .normalize_single_string_arg(
+        value=mode,
+        arg_name='mode',
+        allow_empty=FALSE
+    )
     cols = c('event', 'gn_node', 'lower_sp_node', 'upper_sp_node')
     empty_df = data.frame(matrix(NA_character_, 0, length(cols)), stringsAsFactors=FALSE)
     colnames(empty_df) = cols
@@ -197,25 +202,28 @@ read_notung_parsable = function(file, mode='D') {
     con = base::file(file, "r")
     on.exit(close(con), add=TRUE)
     event_lines = readLines(con=con, warn=FALSE)
-    dup_positions = grep("^#D", event_lines)
-    if (length(dup_positions)<=1) {
+    dup_positions = grep("^\\s*#D\\b", event_lines)
+    if (length(dup_positions)==0) {
         return(empty_df)
     }
 
     dup_lines = event_lines[dup_positions]
-    dup_items = strsplit(dup_lines[2:length(dup_lines)], "\\s+")
+    dup_items = strsplit(dup_lines, "\\s+")
     parsed = lapply(dup_items, function(item_vec) {
         item_values = item_vec[nchar(item_vec)>0]
+        if (length(item_values) && item_values[1] == '#D') {
+            item_values = item_values[-1]
+        }
         out = rep(NA_character_, length(cols))
-        num_copy = min(length(item_values), length(cols))
+        out[1] = 'D'
+        num_copy = min(length(item_values), length(cols) - 1L)
         if (num_copy>0) {
-            out[seq_len(num_copy)] = item_values[seq_len(num_copy)]
+            out[1 + seq_len(num_copy)] = item_values[seq_len(num_copy)]
         }
         out
     })
     df = data.frame(do.call(rbind, parsed), stringsAsFactors=FALSE)
     rownames(df) = NULL
     colnames(df) = cols
-    df$event = 'D'
     return(df)
 }

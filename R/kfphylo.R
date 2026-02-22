@@ -6,16 +6,27 @@
 
 get_node_num_by_name = function(phy, node_name) {
     node_names = c(phy[['tip.label']], phy$node.label)
-    node_nums = seq_along(node_names)
-    node_num = node_nums[node_names %in% node_name]
-    return(node_num)
+    out = integer(0)
+    for (name in as.character(node_name)) {
+        if (is.na(name)) {
+            next
+        }
+        out = c(out, which(node_names == name))
+    }
+    return(out)
 }
 
 get_node_name_by_num = function(phy, node_num) {
     node_names = c(phy[['tip.label']], phy$node.label)
-    node_nums = seq_along(node_names)
-    node_name = node_names[node_nums %in% node_num]
-    return(node_name)
+    out = character(0)
+    max_node_num = length(node_names)
+    for (num in suppressWarnings(as.integer(node_num))) {
+        if (is.na(num) || num < 1L || num > max_node_num) {
+            next
+        }
+        out = c(out, node_names[num])
+    }
+    return(out)
 }
 
 get_root_num = function(phy) {
@@ -24,8 +35,15 @@ get_root_num = function(phy) {
 }
 
 get_children_num = function(phy, node_num) {
-    children_num = phy[['edge']][(phy[['edge']][,1]==node_num),2]
-    return(children_num)
+    out = integer(0)
+    max_node_num = max(phy[['edge']])
+    for (nn in suppressWarnings(as.integer(node_num))) {
+        if (is.na(nn) || nn < 1L || nn > max_node_num) {
+            next
+        }
+        out = c(out, phy[['edge']][(phy[['edge']][,1]==nn),2])
+    }
+    return(out)
 }
 
 is_root = function(phy, node_num) {
@@ -38,18 +56,22 @@ is_leaf = function(phy, node_num) {
 } 
 
 get_descendent_num = function(phy, node_num, leaf_only=FALSE) {
+    leaf_only = .normalize_single_logical_arg(
+        value=leaf_only,
+        arg_name='leaf_only'
+    )
     descendent_nums = c()
     children_nums = get_children_num(phy, node_num)
     while(!all(is.na(children_nums))) {
         children_nums = children_nums[!is.na(children_nums)]
         descendent_nums = c(descendent_nums, children_nums)
-        childrens = c()
-        for (nn in children_nums) {
-            childrens = c(childrens, get_children_num(phy, nn))
+            childrens = c()
+            for (nn in children_nums) {
+                childrens = c(childrens, get_children_num(phy, nn))
+            }
+            children_nums = childrens
         }
-        children_nums = childrens
-    }
-    descendent_nums = sort(descendent_nums)
+    descendent_nums = sort(unique(descendent_nums))
     if (leaf_only) {
         descendent_nums = descendent_nums[descendent_nums <= length(phy[['tip.label']])]
     }
@@ -57,26 +79,52 @@ get_descendent_num = function(phy, node_num, leaf_only=FALSE) {
 }
 
 get_parent_num = function(phy, node_num) {
-    parent_num = phy[['edge']][(phy[['edge']][,2]==node_num),1]
-    return(parent_num)
+    out = integer(0)
+    max_node_num = max(phy[['edge']])
+    for (nn in suppressWarnings(as.integer(node_num))) {
+        if (is.na(nn) || nn < 1L || nn > max_node_num) {
+            next
+        }
+        out = c(out, phy[['edge']][(phy[['edge']][,2]==nn),1])
+    }
+    return(out)
 }
 
 get_sister_num = function(phy, node_num) {
-    parent_num = phy[['edge']][(phy[['edge']][,2]==node_num),1]
-    sibling_num = phy[['edge']][(phy[['edge']][,1]==parent_num),2]
-    sister_num = sibling_num[sibling_num!=node_num]
-    return(sister_num)
+    out = integer(0)
+    max_node_num = max(phy[['edge']])
+    for (nn in suppressWarnings(as.integer(node_num))) {
+        if (is.na(nn) || nn < 1L || nn > max_node_num) {
+            next
+        }
+        parent_num = phy[['edge']][(phy[['edge']][,2]==nn),1]
+        sibling_num = phy[['edge']][(phy[['edge']][,1]==parent_num),2]
+        sister_num = sibling_num[sibling_num!=nn]
+        out = c(out, sister_num)
+    }
+    return(out)
 }
 
 get_ancestor_num = function(phy, node_num) {
+    node_num = suppressWarnings(as.integer(node_num))
+    max_node_num = max(phy[['edge']])
+    if (length(node_num) != 1 || is.na(node_num) || node_num < 1 || node_num > max_node_num) {
+        return(integer(0))
+    }
     ancestor_num = c()
     root_num = get_root_num(phy)
     current_node_num = node_num
     for (i in seq_len(phy[['Nnode']])) {
+        if (!length(current_node_num) || is.na(current_node_num)) {
+            break
+        }
         if (current_node_num==root_num) {
             break
         }
         parent_num = get_parent_num(phy, current_node_num)
+        if (!length(parent_num)) {
+            break
+        }
         ancestor_num = c(ancestor_num, parent_num)
         current_node_num = parent_num
     }
@@ -89,23 +137,31 @@ collapse_short_external_edges = function(tree, threshold=1e-6) {
 }
 
 pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
+    external_only = .normalize_single_logical_arg(
+        value=external_only,
+        arg_name='external_only'
+    )
     stopifnot(ape::is.binary(tree))
     out_tree = tree
     edge_idx = seq_len(nrow(out_tree$edge))
-    is_target_edge = TRUE
+    is_target_edge = rep(TRUE, nrow(out_tree$edge))
     if (external_only) {
         is_target_edge = is_target_edge & (out_tree$edge[,2]<=length(out_tree$tip.label))
     }
     edge_lengths = out_tree[['edge.length']][is_target_edge]
-    min_eel = min(edge_lengths)
+    non_na_edge_lengths = edge_lengths[!is.na(edge_lengths)]
+    min_eel = if (length(non_na_edge_lengths)) min(non_na_edge_lengths) else NA_real_
     cat('Minimum edge length:', min_eel, '\n')
-    is_short_eel = (is_target_edge)&(out_tree$edge.length<threshold)
+    if (any(is.na(edge_lengths))) {
+        cat('NA edge lengths were ignored when searching short edges.\n')
+    }
+    is_short_eel = is_target_edge & (!is.na(out_tree$edge.length)) & (out_tree$edge.length < threshold)
     num_short_eel = sum(is_short_eel)
     cat('Number of short edges ( length <', threshold, '):', num_short_eel, '\n')
     if (num_short_eel>0) {
         short_eel_idx = edge_idx[is_short_eel]
         for (i in short_eel_idx) {
-            if (out_tree$edge.length[i]<threshold) {
+            if (!is.na(out_tree$edge.length[i]) && (out_tree$edge.length[i] < threshold)) {
                 shift_value = threshold - out_tree$edge.length[i]
                 sister_node_num = get_sister_num(out_tree, out_tree$edge[i,2])
                 sister_edge_idx = edge_idx[out_tree$edge[,2]==sister_node_num]
@@ -118,6 +174,9 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
                     parent_edge_idx = edge_idx[out_tree$edge[,2]==parent_node_num]
                     parent_edge_length = out_tree$edge.length[parent_edge_idx]
                     if (parent_node_num==root_num) {
+                        flag = FALSE
+                        flag_root = TRUE
+                    } else if (is.na(parent_edge_length)) {
                         flag = FALSE
                         flag_root = TRUE
                     } else if (parent_edge_length>=threshold+shift_value) {
@@ -143,11 +202,28 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
 
 get_tip_labels = function(phy, node_num, out=NULL) {
     num_leaf = length(phy[['tip.label']])
-    if (node_num > num_leaf) {
-        subtree = ape::extract.clade(phy, node_num)
-        tip_labels = subtree$tip.label
-    } else {
-        tip_labels = phy[['tip.label']][node_num]
+    node_nums = suppressWarnings(as.integer(node_num))
+    max_node_num = max(phy[['edge']])
+    invalid_node_nums = node_nums[!is.na(node_nums) & (node_nums > max_node_num)]
+    if (length(invalid_node_nums)) {
+        stop(
+            'node_num contains value(s) outside valid node range [1, ',
+            max_node_num,
+            ']: ',
+            paste(unique(invalid_node_nums), collapse=', ')
+        )
+    }
+    tip_labels = character(0)
+    for (nn in node_nums) {
+        if (is.na(nn) || nn < 1) {
+            next
+        }
+        if (nn > num_leaf) {
+            subtree = ape::extract.clade(phy, nn)
+            tip_labels = c(tip_labels, subtree$tip.label)
+        } else {
+            tip_labels = c(tip_labels, phy[['tip.label']][nn])
+        }
     }
     if (!is.null(out)) {
         tip_labels = c(out, tip_labels)
@@ -156,8 +232,29 @@ get_tip_labels = function(phy, node_num, out=NULL) {
 }
 
 get_nearest_tips = function(phy, query, subjects, mrca_matrix) {
-    stopifnot(length(query)==1)
+    query = .normalize_single_string_arg(
+        value=query,
+        arg_name='query',
+        allow_empty=FALSE
+    )
+    subjects = as.character(subjects)
+    if (length(subjects) == 0 || any(is.na(subjects) | trimws(subjects) == '')) {
+        stop('subjects must contain at least one non-missing tip label.')
+    }
+    if (!(query %in% rownames(mrca_matrix))) {
+        stop('query must be present in mrca_matrix row names: ', query)
+    }
+    missing_subjects = setdiff(subjects, colnames(mrca_matrix))
+    if (length(missing_subjects)) {
+        stop(
+            'subjects are missing in mrca_matrix column names: ',
+            paste(missing_subjects, collapse=', ')
+        )
+    }
     query_num = get_node_num_by_name(phy, query)
+    if (length(query_num) != 1) {
+        stop('query must map to exactly one node in phy: ', query)
+    }
     mrcas = mrca_matrix[query,subjects]
     if (length(subjects)==1) {
         names(mrcas) = subjects
@@ -175,6 +272,11 @@ get_nearest_tips = function(phy, query, subjects, mrca_matrix) {
 
 get_node_age = function(phy, node_num) {
     stopifnot(ape::is.ultrametric(phy))
+    node_num = suppressWarnings(as.integer(node_num))
+    max_node_num = max(phy[['edge']])
+    if (length(node_num) != 1 || is.na(node_num) || node_num < 1 || node_num > max_node_num) {
+        stop('node_num must be a single integer in [1, ', max_node_num, '] in get_node_age().')
+    }
     age = 0
     current_node_num = node_num
     while (!is.na(current_node_num)) {
@@ -189,7 +291,17 @@ get_node_age = function(phy, node_num) {
 }
 
 get_outgroup = function(phy) {
-    children_nums = get_children_num(phy, get_root_num(phy))
+    if (!ape::is.rooted(phy)) {
+        stop('phy is unrooted. get_outgroup() requires a rooted tree.')
+    }
+    root_num = get_root_num(phy)
+    if (length(root_num) != 1) {
+        stop('Unable to identify a unique root node in phy.')
+    }
+    children_nums = get_children_num(phy, root_num)
+    if (length(children_nums) < 2) {
+        stop('Root node must have at least two child clades.')
+    }
     outgroup_labels = phy[['tip.label']]
     for (cn in children_nums) {
         og_labels = get_tip_labels(phy, cn)
@@ -210,26 +322,37 @@ is_same_root = function(phy1, phy2) {
     if (! identical(sort(phy1$tip.label), sort(phy2$tip.label))) {
         stop('phy1 and phy2 have different sets of leaves.')
     }
-    phys = list(phy1, phy2)
-    leaf_names = vector(mode='list', length(phys))
-    for (i in seq_along(phys)) {
-        children = get_children_num(phys[[i]], get_root_num(phys[[i]]))
-        leaf_names[[i]] = vector(mode='list', length(children))
-        leaf_names[[i]][[1]] = get_tip_labels(phys[[i]], children[1])
-        leaf_names[[i]][[2]] = get_tip_labels(phys[[i]], children[2])
+    root1 = get_root_num(phy1)
+    root2 = get_root_num(phy2)
+    if (length(root1) != 1) {
+        stop('Unable to identify a unique root node in phy1.')
     }
-    if (identical(sort(leaf_names[[1]][[1]]), sort(leaf_names[[2]][[1]]))) {
-        return(TRUE)
-    } else if (identical(sort(leaf_names[[1]][[1]]), sort(leaf_names[[2]][[2]]))) {
-        return(TRUE)
-    } else {
-        return(FALSE)
+    if (length(root2) != 1) {
+        stop('Unable to identify a unique root node in phy2.')
     }
+    get_root_child_signatures = function(phy, root_num) {
+        children = get_children_num(phy, root_num)
+        if (!length(children)) {
+            return(character(0))
+        }
+        signatures = vapply(children, function(cn) {
+            paste(sort(get_tip_labels(phy, cn)), collapse='\r')
+        }, character(1))
+        sort(signatures)
+    }
+    sig1 = get_root_child_signatures(phy1, root1)
+    sig2 = get_root_child_signatures(phy2, root2)
+    return(identical(sig1, sig2))
 }
 
 get_phy2_root_in_phy1 = function(phy1, phy2, nslots, mode=c("node_num", "index")) {
     mode_name = match.arg(mode)
     num_slots = suppressWarnings(as.integer(nslots))
+    if (!length(num_slots)) {
+        num_slots = 1L
+    } else {
+        num_slots = num_slots[[1]]
+    }
     if (is.na(num_slots) || num_slots < 1) {
         num_slots = 1L
     }
@@ -306,6 +429,15 @@ get_phy2_root_in_phy1 = function(phy1, phy2, nslots, mode=c("node_num", "index")
 }
 
 get_rooted_newick = function(t, madr, rho) {
+    if (length(madr) != 1 || is.na(madr) || madr < 1 || madr > nrow(t$edge)) {
+        stop('madr must be a single edge index in [1, ', nrow(t$edge), '] in get_rooted_newick().')
+    }
+    if (length(rho) != nrow(t$edge)) {
+        stop('rho must have length ', nrow(t$edge), ' in get_rooted_newick().')
+    }
+    if (is.na(rho[madr])) {
+        stop('rho[madr] is NA in get_rooted_newick().')
+    }
     notu <- length(t$tip.label)
     dis <- ape::dist.nodes(t)
     pp <- rho[madr]*t$edge.length[madr]
@@ -547,6 +679,13 @@ MAD <- function(unrooted_newick,output_mode){
         "Dependencies: 'ape' and 'phytools'","","Version: 1.1, 03-May-2017",sep="\n"))
     }
     mode = if (missing(output_mode)) NULL else output_mode
+    if (!is.null(mode)) {
+        mode = .normalize_single_string_arg(
+            value=mode,
+            arg_name='output_mode',
+            allow_empty=FALSE
+        )
+    }
     t <- .prepare_mad_tree(unrooted_newick)
     return(.run_mad_with_tree(
         t=t, output_mode=mode, ncpu=1, use_parallel=FALSE,
@@ -556,6 +695,13 @@ MAD <- function(unrooted_newick,output_mode){
 
 MAD_parallel = function(unrooted_newick, output_mode, ncpu=NULL) {
     mode = if (missing(output_mode)) NULL else output_mode
+    if (!is.null(mode)) {
+        mode = .normalize_single_string_arg(
+            value=mode,
+            arg_name='output_mode',
+            allow_empty=FALSE
+        )
+    }
 
     t = .prepare_mad_tree(unrooted_newick)
     num_parallel = .resolve_parallel_cores(
@@ -571,16 +717,39 @@ MAD_parallel = function(unrooted_newick, output_mode, ncpu=NULL) {
 
 transfer_node_labels = function(phy_from, phy_to) {
     out_phy_to = phy_to
-    for (t in seq_along(out_phy_to$node.label)) {
-        to_node = out_phy_to$node.label[t]
-        to_clade = ape::extract.clade(phy=out_phy_to, node=to_node, root.edge = 0, interactive = FALSE)
+    if (!setequal(phy_from$tip.label, out_phy_to$tip.label)) {
+        stop('phy_from and phy_to must contain the same tip labels.')
+    }
+    if (is.null(phy_from$node.label)) {
+        stop('phy_from has no node labels to transfer.')
+    }
+    num_tip_from = length(phy_from$tip.label)
+    num_tip_to = length(out_phy_to$tip.label)
+    num_int_from = as.integer(phy_from$Nnode)
+    num_int_to = as.integer(out_phy_to$Nnode)
+    if (is.null(out_phy_to$node.label)) {
+        out_phy_to$node.label = rep(NA_character_, num_int_to)
+    } else {
+        out_phy_to$node.label = as.character(out_phy_to$node.label)
+        if (length(out_phy_to$node.label) < num_int_to) {
+            out_phy_to$node.label = c(
+                out_phy_to$node.label,
+                rep(NA_character_, num_int_to - length(out_phy_to$node.label))
+            )
+        } else if (length(out_phy_to$node.label) > num_int_to) {
+            out_phy_to$node.label = out_phy_to$node.label[seq_len(num_int_to)]
+        }
+    }
+    for (t in seq_len(num_int_to)) {
+        to_node_num = num_tip_to + t
+        to_clade = ape::extract.clade(phy=out_phy_to, node=to_node_num, root.edge=0, interactive=FALSE)
         to_leaves = to_clade$tip.label
-        for (f in seq_along(phy_from$node.label)) {
-            from_node = phy_from$node.label[f]
-            from_clade = ape::extract.clade(phy=phy_from, node=from_node, root.edge = 0, interactive = FALSE)
+        for (f in seq_len(num_int_from)) {
+            from_node_num = num_tip_from + f
+            from_clade = ape::extract.clade(phy=phy_from, node=from_node_num, root.edge=0, interactive=FALSE)
             from_leaves = from_clade$tip.label
             if (setequal(to_leaves, from_leaves)) {
-                out_phy_to$node.label[t] = from_node
+                out_phy_to$node.label[t] = as.character(phy_from$node.label[f])
                 break
             }
         }
@@ -595,25 +764,40 @@ get_species_name = function(a) {
 }
 
 get_species_names = function(phy, sep='_') {
-    split_names = strsplit(phy[['tip.label']], sep)
-    species_names = character(0)
-    for (sn in split_names) {
-        species_names = c(species_names, paste0(sn[1], sep, sn[2]))
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    split_names = strsplit(phy[['tip.label']], sep, fixed=TRUE)
+    species_names = character(length(split_names))
+    for (i in seq_along(split_names)) {
+        sn = split_names[[i]]
+        if (length(sn) >= 2) {
+            species_names[i] = paste0(sn[1], sep, sn[2])
+        } else {
+            warning(
+                'leaf name could not be interpreted as genus', sep, 'species: ',
+                phy[['tip.label']][i]
+            )
+            species_names[i] = NA_character_
+        }
     }
     return(species_names)
 }
 
 leaf2species = function(leaf_names, use_underbar=FALSE) {
+    use_underbar = .normalize_single_logical_arg(
+        value=use_underbar,
+        arg_name='use_underbar'
+    )
     split = strsplit(leaf_names, '_')
-    species_names = character(0)
+    species_names = rep(NA_character_, length(split))
     for (i in seq_along(split)) {
         if (length(split[[i]])>=3) {
-            species_names = c(
-                species_names,
-                paste(split[[i]][[1]], split[[i]][[2]])
-            )
+            species_names[i] = paste(split[[i]][[1]], split[[i]][[2]])
         } else {
-            warning('leaf name could not be interpreted as genus_species_gene: ', split[[i]], '\n')
+            warning('leaf name could not be interpreted as genus_species_gene: ', leaf_names[i], '\n')
         }
     }
     if (use_underbar) {
@@ -633,8 +817,8 @@ contains_polytomy = function(phy) {
 
 has_same_leaves = function(phy1, phy1_node, phy2, phy2_node) {
     stopifnot(all(sort(phy1$tip.label)==sort(phy2$tip.label)))
-    phy1_leaves = sort(rkftools::get_tip_labels(phy1, phy1_node))
-    phy2_leaves = sort(rkftools::get_tip_labels(phy2, phy2_node))
+    phy1_leaves = sort(get_tip_labels(phy1, phy1_node))
+    phy2_leaves = sort(get_tip_labels(phy2, phy2_node))
     is_same_leaves = all(phy1_leaves==phy2_leaves)
     return(is_same_leaves)
 }
@@ -643,22 +827,33 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
     mtree = multifurcated_tree
     btree = bifurcated_tree
     stopifnot(all(mtree[['tip.label']]==btree[['tip.label']]))
-    stopifnot(rkftools::is_same_root(mtree, btree))
-    stopifnot(as.logical(ape::dist.topo(ape::unroot(mtree), ape::unroot(btree), method='PH85')))
+    stopifnot(is_same_root(mtree, btree))
+    topo_dist = ape::dist.topo(ape::unroot(mtree), ape::unroot(btree), method='PH85')
+    if (is.na(topo_dist)) {
+        stop('Unable to compute topological distance in multi2bi_node_number_transfer().')
+    }
     internal_node_counts = table(mtree[['edge']][,1])
     polytomy_parents = as.integer(names(internal_node_counts)[internal_node_counts > 2])
+    if (!length(polytomy_parents)) {
+        return(data.frame(mtree_node=integer(0), btree_node=integer(0)))
+    }
     cat('Polytomy parent nodes:', polytomy_parents, '\n')
     df = data.frame()
     for (mtree_pp in polytomy_parents) {
-        mtree_pp_leaves = sort(rkftools::get_tip_labels(mtree, mtree_pp))
+        mtree_pp_leaves = sort(get_tip_labels(mtree, mtree_pp))
+        matched = FALSE
         for (btree_internal_node in btree$edge[,1]) {
-            btree_in_leaves = sort(rkftools::get_tip_labels(btree, btree_internal_node))
+            btree_in_leaves = sort(get_tip_labels(btree, btree_internal_node))
             if (length(mtree_pp_leaves)==length(btree_in_leaves)) {
                 if (all(mtree_pp_leaves==btree_in_leaves)) {
                     df = rbind(df, data.frame(mtree_node=mtree_pp, btree_node=btree_internal_node))
+                    matched = TRUE
                     break
                 }
             }
+        }
+        if (!matched) {
+            warning('Failed to map polytomy parent node to bifurcated tree: ', mtree_pp)
         }
     }
     return(df)
@@ -666,8 +861,13 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
 
 collapse_short_branches = function(tree, tol=1e-8) {
     out_tree = tree
-    if (any(abs(out_tree$edge.length) < tol)) {
-        cat('Extremely short branches ( n =', sum(abs(out_tree$edge.length) < tol), ') were collapsed. tol =', tol, '\n')
+    edge_lengths = out_tree$edge.length
+    is_short_edge = (!is.na(edge_lengths)) & (abs(edge_lengths) < tol)
+    if (any(is.na(edge_lengths))) {
+        cat('NA edge lengths were ignored when searching extremely short branches.\n')
+    }
+    if (any(is_short_edge)) {
+        cat('Extremely short branches ( n =', sum(is_short_edge), ') were collapsed. tol =', tol, '\n')
         out_tree = ape::di2multi(out_tree, tol=tol)
     } else {
         cat('No extremely short branch was detected. tol =', tol, '\n')
@@ -677,6 +877,9 @@ collapse_short_branches = function(tree, tol=1e-8) {
 
 force_ultrametric = function(tree, stop_if_larger_change=0.01) {
     out_tree = tree
+    if (any(is.na(out_tree[['edge.length']]))) {
+        stop('tree contains NA edge lengths. Please resolve NA values before force_ultrametric().')
+    }
     if (ape::is.ultrametric(out_tree)) {
         cat('The tree is ultrametric.\n')
     } else {
@@ -692,10 +895,17 @@ force_ultrametric = function(tree, stop_if_larger_change=0.01) {
 }
 
 get_single_branch_tree = function(name, dist) {
+    if (length(name) != 1 || is.na(name) || trimws(as.character(name)) == '') {
+        stop('name must be a single non-empty tip label in get_single_branch_tree().')
+    }
+    dist_num = suppressWarnings(as.numeric(dist))
+    if (length(dist_num) != 1 || is.na(dist_num)) {
+        stop('dist must be a single numeric branch length in get_single_branch_tree().')
+    }
     phy = list(
       edge = matrix(c(2,1),1,2),
-      tip.label = name,
-      edge.length = dist,
+      tip.label = as.character(name),
+      edge.length = dist_num,
       Nnode = 1
     )
     class(phy) = "phylo"
@@ -703,13 +913,13 @@ get_single_branch_tree = function(name, dist) {
 }
 
 remove_redundant_root_edge = function(phy) {
-    out_phy = phy
-    root_num = get_root_num(out_phy)
-    is_root_edge = (out_phy[['edge']][,1]!=root_num)
-    out_phy[['edge']] = out_phy[['edge']][is_root_edge,]
-    out_phy[['edge']][out_phy[['edge']]>root_num] = out_phy[['edge']][out_phy[['edge']]>root_num] - 1
-    out_phy[['edge.length']] = out_phy[['edge.length']][is_root_edge]
-    out_phy$Nnode = out_phy$Nnode - 1
+    if (is.null(phy[['tip.label']]) || length(phy[['tip.label']]) <= 1) {
+        return(phy)
+    }
+    if (is.null(phy[['edge']]) || nrow(phy[['edge']]) <= 1) {
+        return(phy)
+    }
+    out_phy = ape::collapse.singles(phy, root.edge=TRUE)
     return(out_phy)
 }
 
@@ -777,6 +987,9 @@ remove_redundant_root_edge = function(phy) {
     lookup = list()
     for (column_name in columns) {
         values = df[[column_name]]
+        if (is.factor(values)) {
+            values = as.character(values)
+        }
         names(values) = node_ids
         lookup[[column_name]] = values
     }
@@ -901,7 +1114,7 @@ remove_redundant_root_edge = function(phy) {
         }
     }
 
-    if (sum(out_phy$node.label=='placeholder')>1) {
+    if (sum(out_phy$node.label=='placeholder', na.rm=TRUE)>1) {
         warning('Node label "placeholder" appeared more than once.')
     }
     return(out_phy)
@@ -914,10 +1127,23 @@ table2phylo = function(df, name_col, dist_col) {
     if (length(missing_cols) > 0) {
         stop('Missing required columns in table2phylo(): ', paste(missing_cols, collapse=', '))
     }
+    id_cols = c('branch_id', 'parent', 'sister')
+    for (id_col in id_cols) {
+        df_local[[id_col]] = as.character(df_local[[id_col]])
+    }
+    branch_ids_chr = as.character(df_local[['branch_id']])
+    missing_branch_ids = is.na(branch_ids_chr) | (trimws(branch_ids_chr) == '')
+    if (any(missing_branch_ids)) {
+        stop('branch_id contains missing/blank value(s) in table2phylo().')
+    }
 
     df_local[[dist_col]] = .table2phylo_normalize_dist_column(df_local[[dist_col]])
     root_id = .table2phylo_detect_root_id(df_local, branch_col='branch_id', parent_col='parent')
+    if (is.na(root_id) || trimws(as.character(root_id)) == '') {
+        stop('Failed to infer a valid root branch_id in table2phylo().')
+    }
     is_root_row = (as.character(df_local[,'branch_id']) == as.character(root_id))
+    is_root_row[is.na(is_root_row)] = FALSE
     if (sum(is_root_row) != 1) {
         stop('Failed to identify a unique root row in table2phylo().')
     }
@@ -947,7 +1173,9 @@ table2phylo = function(df, name_col, dist_col) {
     )
 
     phy = remove_redundant_root_edge(phy)
-    phy = ape::ladderize(phy, right=TRUE)
+    if (length(phy[['tip.label']]) > 1) {
+        phy = ape::ladderize(phy, right=TRUE)
+    }
     phy = .table2phylo_assign_node_labels(
         df=df_local, lookup=lookup, phy=phy, name_col=name_col,
         id2value=.table2phylo_id2value,
@@ -958,8 +1186,22 @@ table2phylo = function(df, name_col, dist_col) {
 
 fill_node_labels = function(phy) {
     out_phy = phy
-    nl = out_phy[['node.label']]
-    is_missing = (is.na(nl))|(nl=='')
+    num_internal = as.integer(out_phy[['Nnode']])
+    if (length(num_internal) != 1 || is.na(num_internal) || num_internal < 0) {
+        num_internal = max(out_phy[['edge']]) - length(out_phy[['tip.label']])
+    }
+    if (is.null(out_phy[['node.label']])) {
+        nl = rep(NA_character_, num_internal)
+    } else {
+        nl = as.character(out_phy[['node.label']])
+        if (length(nl) < num_internal) {
+            nl = c(nl, rep(NA_character_, num_internal - length(nl)))
+        } else if (length(nl) > num_internal) {
+            nl = nl[seq_len(num_internal)]
+        }
+    }
+    out_phy[['node.label']] = nl
+    is_missing = is.na(nl) | (trimws(nl) == '')
     if (sum(is_missing)==0) {
         return(out_phy)
     }
@@ -968,9 +1210,11 @@ fill_node_labels = function(phy) {
     counter = 0
     for (i in missing_index) {
         lab = paste0('n', counter)
-        if (!any(lab==nl)) {
-            out_phy[['node.label']][i] = lab
+        while (any(lab == out_phy[['node.label']], na.rm=TRUE)) {
+            counter = counter + 1L
+            lab = paste0('n', counter)
         }
+        out_phy[['node.label']][i] = lab
         counter = counter + 1
     }
     return(out_phy)
