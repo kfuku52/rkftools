@@ -3,14 +3,29 @@
 # Created by: kef74yk
 # Created on: 2019-01-02
 
-get_duplication_confidence_score = function(phy, node_num) {
+get_duplication_confidence_score = function(phy, node_num, species_parser='legacy', sep='_') {
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
     children_num = get_children_num(phy, node_num)
     if (length(children_num)==2) {
         child_leaves = vector(mode='list', length(children_num))
         for (j in seq_along(children_num)) {
             child_leaves[[j]] = get_tip_labels(phy, children_num[j])
-            child_leaves[[j]] = sub('_', ' ', child_leaves[[j]])
-            child_leaves[[j]] = sub('_.*', '', child_leaves[[j]])
+            child_leaves[[j]] = .parse_species_labels(
+                labels=child_leaves[[j]],
+                species_parser=species_parser,
+                sep=sep,
+                output_sep=' ',
+                require_gene=FALSE,
+                fallback_label=TRUE
+            )[['species_labels']]
         }
         sp_intersect = intersect(child_leaves[[1]], child_leaves[[2]])
         sp_union = union(child_leaves[[1]], child_leaves[[2]])
@@ -34,16 +49,37 @@ get_duplication_confidence_score = function(phy, node_num) {
     sum(dc_scores > dc_cutoff)
 }
 
-.tip_species_id_map = function(tip_labels) {
-    species_labels = sub('_', ' ', tip_labels)
-    species_labels = sub('_.*', '', species_labels)
+.tip_species_id_map = function(tip_labels, species_parser='legacy', sep='_') {
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    species_labels = .parse_species_labels(
+        labels=tip_labels,
+        species_parser=species_parser,
+        sep=sep,
+        output_sep=sep,
+        require_gene=FALSE,
+        fallback_label=TRUE
+    )[['species_labels']]
     species_levels = unique(species_labels)
     species_ids = match(species_labels, species_levels)
     names(species_ids) = tip_labels
     species_ids
 }
 
-.species_overlap_score_fast_impl = function(phy, dc_cutoff=0, species_id_by_label=NULL) {
+.species_overlap_score_fast_impl = function(
+    phy,
+    dc_cutoff=0,
+    species_id_by_label=NULL,
+    species_parser='legacy',
+    sep='_'
+) {
     tip_count = length(phy[['tip.label']])
     if (tip_count == 0) {
         return(0)
@@ -59,11 +95,19 @@ get_duplication_confidence_score = function(phy, node_num) {
     }
 
     if (is.null(species_id_by_label)) {
-        tip_species_ids = unname(.tip_species_id_map(phy[['tip.label']]))
+        tip_species_ids = unname(.tip_species_id_map(
+            tip_labels=phy[['tip.label']],
+            species_parser=species_parser,
+            sep=sep
+        ))
     } else {
         tip_species_ids = as.integer(species_id_by_label[phy[['tip.label']]])
         if (anyNA(tip_species_ids)) {
-            tip_species_ids = unname(.tip_species_id_map(phy[['tip.label']]))
+            tip_species_ids = unname(.tip_species_id_map(
+                tip_labels=phy[['tip.label']],
+                species_parser=species_parser,
+                sep=sep
+            ))
         }
     }
 
@@ -124,19 +168,44 @@ get_duplication_confidence_score = function(phy, node_num) {
     as.numeric(overlap_count)
 }
 
-get_species_overlap_score = function(phy, dc_cutoff=0) {
+get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', sep='_') {
     # this function assumes that leaf names are: GENUS_SPECIES_GENEID (e.g. Bos_taurus_AF492351.1)
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
     .species_overlap_score_fast_impl(
         phy=phy,
         dc_cutoff=dc_cutoff,
-        species_id_by_label=NULL
+        species_id_by_label=NULL,
+        species_parser=species_parser,
+        sep=sep
     )
 }
 
-get_root_position_dependent_species_overlap_scores = function(phy, nslots) {
+get_root_position_dependent_species_overlap_scores = function(
+    phy,
+    nslots,
+    species_parser='legacy',
+    sep='_'
+) {
     if (!requireNamespace('phytools', quietly=TRUE)) {
         stop("'phytools' package not found, please install it.")
     }
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
 
     num_edges = nrow(phy[['edge']])
     if (num_edges == 0) {
@@ -148,14 +217,20 @@ get_root_position_dependent_species_overlap_scores = function(phy, nslots) {
         max_tasks=num_edges,
         auto_when_missing=FALSE
     )
-    species_id_by_label = .tip_species_id_map(phy[['tip.label']])
+    species_id_by_label = .tip_species_id_map(
+        tip_labels=phy[['tip.label']],
+        species_parser=species_parser,
+        sep=sep
+    )
 
     score_edge = function(i, phy_obj, dc_cutoff=0) {
         rt = phytools::reroot(tree=phy_obj, node.number=phy_obj[['edge']][i,2])
         .species_overlap_score_fast_impl(
             phy=rt,
             dc_cutoff=dc_cutoff,
-            species_id_by_label=species_id_by_label
+            species_id_by_label=species_id_by_label,
+            species_parser=species_parser,
+            sep=sep
         )
     }
 

@@ -472,21 +472,32 @@ map_node_num = function(tree_original, tree_collapsed, collapse_leaf_names=list(
     return(df)
 }
 
-get_tree_table = function(pcm_out, mode) {
+get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
     mode = .normalize_single_string_arg(
         value=mode,
         arg_name='mode',
         allow_empty=FALSE
     )
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
     tree_table = data.frame()
     if (mode=='l1ou') {
         leaves = pcm_out$tree$tip.label
-        leaf2sp = function(leaf_name) {
-            leaf_split = strsplit(leaf_name, "_")
-            sp = paste(leaf_split[[1]][1], leaf_split[[1]][2], sep="_")
-            return(sp)
-        }
-        spp = unique(sapply(leaves, leaf2sp))
+        spp = unique(.parse_species_labels(
+            labels=leaves,
+            species_parser=species_parser,
+            sep=sep,
+            output_sep=sep,
+            require_gene=FALSE,
+            fallback_label=TRUE
+        )[['species_labels']])
         if (is.null(names(pcm_out$shift.configuration))) {
             shift_conf = c("0", as.character(seq_along(pcm_out$shift.configuration)))
         } else {
@@ -510,7 +521,11 @@ get_tree_table = function(pcm_out, mode) {
         colnames(df) = c('num_shift','log_likelihood','num_species','num_leaf')
         df[['num_shift']] = ncol(pp[['shifts']][['values']])
         df[['log_likelihood']] = attr(pp, 'log_likelihood')
-        df[['num_species']] = length(unique(suppressWarnings(leaf2species(leaf_names=pcm_out[['phylo']][['tip.label']]))))
+        df[['num_species']] = length(unique(suppressWarnings(leaf2species(
+            leaf_names=pcm_out[['phylo']][['tip.label']],
+            species_parser=species_parser,
+            sep=sep
+        ))))
         df[['num_leaf']] = length(pcm_out[['phylo']][['tip.label']])
         tree_table = df
     } else {
@@ -923,9 +938,13 @@ get_bootstrap_table = function(pcm_out, bootstrap_result, mode='l1ou') {
     return(bp_table)
 }
 
-tree_table_collapse2original = function(tree_table, tree_original) {
+tree_table_collapse2original = function(tree_table, tree_original, species_parser='legacy', sep='_') {
     num_leaf = length(tree_original$tip.label)
-    species_names = suppressWarnings(leaf2species(tree_original$tip.label))
+    species_names = suppressWarnings(leaf2species(
+        tree_original$tip.label,
+        species_parser=species_parser,
+        sep=sep
+    ))
     if (length(species_names) != num_leaf || !length(species_names) || all(is.na(species_names))) {
         species_names = tree_original$tip.label
     }

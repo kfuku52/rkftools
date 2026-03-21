@@ -757,51 +757,94 @@ transfer_node_labels = function(phy_from, phy_to) {
     return(out_phy_to)
 }
 
-get_species_name = function(a) {
-    out = sub('_',' ', a)
-    out = sub('_.*','', out)
-    return(out)
-}
-
-get_species_names = function(phy, sep='_') {
+get_species_name = function(a, species_parser='legacy', sep='_') {
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
     sep = .normalize_single_string_arg(
         value=sep,
         arg_name='sep',
         allow_empty=FALSE
     )
-    split_names = strsplit(phy[['tip.label']], sep, fixed=TRUE)
-    species_names = character(length(split_names))
-    for (i in seq_along(split_names)) {
-        sn = split_names[[i]]
-        if (length(sn) >= 2) {
-            species_names[i] = paste0(sn[1], sep, sn[2])
-        } else {
+    parsed = .parse_species_labels(
+        labels=a,
+        species_parser=species_parser,
+        sep=sep,
+        output_sep=' ',
+        require_gene=FALSE,
+        fallback_label=TRUE
+    )
+    return(parsed[['species_labels']])
+}
+
+get_species_names = function(phy, sep='_', species_parser='legacy') {
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    parsed = .parse_species_labels(
+        labels=phy[['tip.label']],
+        species_parser=species_parser,
+        sep=sep,
+        output_sep=sep,
+        require_gene=FALSE,
+        fallback_label=FALSE
+    )
+    species_names = parsed[['species_labels']]
+    if (any(!parsed[['parsed_ok']])) {
+        bad_labels = phy[['tip.label']][!parsed[['parsed_ok']]]
+        for (i in seq_along(bad_labels)) {
             warning(
-                'leaf name could not be interpreted as genus', sep, 'species: ',
-                phy[['tip.label']][i]
+                'leaf name could not be interpreted with species_parser="',
+                species_parser,
+                '": ',
+                bad_labels[[i]]
             )
-            species_names[i] = NA_character_
         }
     }
     return(species_names)
 }
 
-leaf2species = function(leaf_names, use_underbar=FALSE) {
+leaf2species = function(leaf_names, use_underbar=FALSE, species_parser='legacy', sep='_') {
     use_underbar = .normalize_single_logical_arg(
         value=use_underbar,
         arg_name='use_underbar'
     )
-    split = strsplit(leaf_names, '_')
-    species_names = rep(NA_character_, length(split))
-    for (i in seq_along(split)) {
-        if (length(split[[i]])>=3) {
-            species_names[i] = paste(split[[i]][[1]], split[[i]][[2]])
-        } else {
-            warning('leaf name could not be interpreted as genus_species_gene: ', leaf_names[i], '\n')
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    parsed = .parse_species_labels(
+        labels=leaf_names,
+        species_parser=species_parser,
+        sep=sep,
+        output_sep=if (use_underbar) '_' else ' ',
+        require_gene=TRUE,
+        fallback_label=FALSE
+    )
+    species_names = parsed[['species_labels']]
+    if (any(!parsed[['parsed_ok']])) {
+        bad_labels = leaf_names[!parsed[['parsed_ok']]]
+        for (i in seq_along(bad_labels)) {
+            warning(
+                'leaf name could not be interpreted as a species-bearing label with species_parser="',
+                species_parser,
+                '": ',
+                bad_labels[[i]],
+                '\n'
+            )
         }
-    }
-    if (use_underbar) {
-        species_names = gsub(' ', '_', species_names)
     }
     return(species_names)
 }
