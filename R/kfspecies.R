@@ -21,29 +21,49 @@
     value
 }
 
+.taxonomic_genus_only_placeholders = c('sp', 'spp')
+.taxonomic_single_token_qualifiers = c('cf', 'aff', 'nr', 'x')
+.taxonomic_paired_token_qualifiers = c(
+    'subsp', 'ssp', 'subspecies',
+    'var', 'variety',
+    'forma', 'form', 'f',
+    'strain', 'substrain',
+    'serovar', 'serotype', 'serogroup',
+    'pathovar', 'pv',
+    'biovar', 'biotype', 'chemovar', 'morphovar',
+    'cultivar', 'cv',
+    'isolate',
+    'group', 'subgroup', 'complex', 'clade', 'lineage',
+    'section', 'series', 'ecotype', 'breed'
+)
+
 .taxonomic_species_parser_token_count = function(split_label) {
     species_len = 2L
     if (length(split_label) < species_len) {
         return(length(split_label))
     }
 
-    if (tolower(split_label[2]) == 'sp') {
+    if (tolower(split_label[2]) %in% .taxonomic_genus_only_placeholders) {
+        if (length(split_label) >= 3L) {
+            return(3L)
+        }
+        return(2L)
+    }
+    if (tolower(split_label[2]) %in% .taxonomic_single_token_qualifiers) {
         if (length(split_label) >= 3L) {
             return(3L)
         }
         return(2L)
     }
 
-    single_token_qualifiers = c('cf', 'aff', 'nr', 'x')
-    paired_token_qualifiers = c('sp', 'subsp', 'ssp', 'var', 'forma', 'f', 'group', 'complex', 'clade')
     while (length(split_label) > species_len) {
         next_token = split_label[species_len + 1L]
         next_token_norm = tolower(next_token)
-        if (next_token_norm %in% single_token_qualifiers) {
+        if (next_token_norm %in% .taxonomic_single_token_qualifiers) {
             species_len = species_len + 1L
             next
         }
-        if (next_token_norm %in% paired_token_qualifiers) {
+        if (next_token_norm %in% .taxonomic_paired_token_qualifiers) {
             species_len = species_len + 1L
             if (length(split_label) > species_len) {
                 species_len = species_len + 1L
