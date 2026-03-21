@@ -14,16 +14,15 @@ stopifnot(length(so_by_root_vec_slots) == nrow(tr$edge))
 dup_score_root = get_duplication_confidence_score(tr, get_root_num(tr))
 stopifnot(isTRUE(all.equal(as.numeric(dup_score_root), 1 / 3, tolerance=1e-10)))
 stopifnot(identical(as.character(get_species_name("A_B_gene1", species_parser="legacy")), "A B"))
-stopifnot(identical(as.character(get_species_name("A_B_cf_gene1", species_parser="qualified")), "A B cf"))
-stopifnot(identical(as.character(get_species_name("A_B_cf_gene1", species_parser="qualified_gg")), "A B cf"))
-stopifnot(identical(as.character(get_species_name("Amoeba_sp_JDSRuffled_gene1", species_parser="qualified")), "Amoeba sp JDSRuffled"))
-stopifnot(identical(as.character(get_species_name("Bacillus_subtilis_subsp_168_gene1", species_parser="qualified")), "Bacillus subtilis subsp 168"))
+stopifnot(identical(as.character(get_species_name("A_B_cf_gene1", species_parser="taxonomic")), "A B cf"))
+stopifnot(identical(as.character(get_species_name("Amoeba_sp_JDSRuffled_gene1", species_parser="taxonomic")), "Amoeba sp JDSRuffled"))
+stopifnot(identical(as.character(get_species_name("Bacillus_subtilis_subsp_168_gene1", species_parser="taxonomic")), "Bacillus subtilis subsp 168"))
 tr_dot = ape::read.tree(text="(A.B.g1:1,C.D.g2:1);")
 dot_species = get_species_names(tr_dot, sep=".")
 stopifnot(identical(as.character(dot_species), c("A.B", "C.D")))
-tr_qualified = ape::read.tree(text="(A_B_gene1:1,A_B_cf_gene2:1,Amoeba_sp_JDSRuffled_gene3:1);")
-qualified_species = get_species_names(tr_qualified, species_parser="qualified")
-stopifnot(identical(as.character(qualified_species), c("A_B", "A_B_cf", "Amoeba_sp_JDSRuffled")))
+tr_taxonomic = ape::read.tree(text="(A_B_gene1:1,A_B_cf_gene2:1,Amoeba_sp_JDSRuffled_gene3:1);")
+taxonomic_species = get_species_names(tr_taxonomic, species_parser="taxonomic")
+stopifnot(identical(as.character(taxonomic_species), c("A_B", "A_B_cf", "Amoeba_sp_JDSRuffled")))
 tr_bad_species = ape::read.tree(text="(A:1,B_c_d:1);")
 bad_species = suppressWarnings(get_species_names(tr_bad_species, sep="_"))
 stopifnot(is.na(bad_species[1]))
@@ -389,17 +388,17 @@ stopifnot(identical(as.character(leaf2species_bad[1]), "A B"))
 stopifnot(is.na(leaf2species_bad[2]))
 leaf2species_legacy = suppressWarnings(leaf2species(c("A_B_gene1"), species_parser="legacy"))
 stopifnot(identical(as.character(leaf2species_legacy), "A B"))
-leaf2species_qualified = suppressWarnings(leaf2species(
+leaf2species_taxonomic = suppressWarnings(leaf2species(
     c("A_B_gene1", "A_B_cf_gene2", "Amoeba_sp_JDSRuffled_gene3", "Bacillus_subtilis_subsp_168_gene4"),
-    species_parser="qualified"
+    species_parser="taxonomic"
 ))
-stopifnot(identical(as.character(leaf2species_qualified), c("A B", "A B cf", "Amoeba sp JDSRuffled", "Bacillus subtilis subsp 168")))
-leaf2species_qualified_underbar = suppressWarnings(leaf2species(
+stopifnot(identical(as.character(leaf2species_taxonomic), c("A B", "A B cf", "Amoeba sp JDSRuffled", "Bacillus subtilis subsp 168")))
+leaf2species_taxonomic_underbar = suppressWarnings(leaf2species(
     c("A_B_gene1", "A_B_cf_gene2", "Amoeba_sp_JDSRuffled_gene3"),
     use_underbar=TRUE,
-    species_parser="qualified"
+    species_parser="taxonomic"
 ))
-stopifnot(identical(as.character(leaf2species_qualified_underbar), c("A_B", "A_B_cf", "Amoeba_sp_JDSRuffled")))
+stopifnot(identical(as.character(leaf2species_taxonomic_underbar), c("A_B", "A_B_cf", "Amoeba_sp_JDSRuffled")))
 leaf2species_use_underbar_na_err = tryCatch(
     {
         leaf2species(c("A_B_g1"), use_underbar=NA)
@@ -410,30 +409,30 @@ leaf2species_use_underbar_na_err = tryCatch(
 stopifnot(!is.null(leaf2species_use_underbar_na_err))
 stopifnot(grepl("use_underbar must be a single non-missing logical value", conditionMessage(leaf2species_use_underbar_na_err), fixed=TRUE))
 stopifnot(identical(as.character(get_species_name("A_B_gene1")), "A B"))
-tr_qualified_overlap = ape::read.tree(text="((Genus_species_gene1:1,Genus_species_cf_gene2:1):1,(Genus_species_gene3:1,Other_species_gene4:1):1);")
-so_qualified_legacy = get_species_overlap_score(tr_qualified_overlap, dc_cutoff=0, species_parser="legacy")
-so_qualified = get_species_overlap_score(tr_qualified_overlap, dc_cutoff=0, species_parser="qualified")
-stopifnot(identical(as.numeric(so_qualified_legacy), 2))
-stopifnot(identical(as.numeric(so_qualified), 1))
-qualified_dup_node = get_parent_num(tr_qualified_overlap, get_node_num_by_name(tr_qualified_overlap, "Genus_species_gene1"))
-dup_score_qualified_legacy = get_duplication_confidence_score(
-    tr_qualified_overlap,
-    qualified_dup_node,
+tr_taxonomic_overlap = ape::read.tree(text="((Genus_species_gene1:1,Genus_species_cf_gene2:1):1,(Genus_species_gene3:1,Other_species_gene4:1):1);")
+so_taxonomic_legacy = get_species_overlap_score(tr_taxonomic_overlap, dc_cutoff=0, species_parser="legacy")
+so_taxonomic = get_species_overlap_score(tr_taxonomic_overlap, dc_cutoff=0, species_parser="taxonomic")
+stopifnot(identical(as.numeric(so_taxonomic_legacy), 2))
+stopifnot(identical(as.numeric(so_taxonomic), 1))
+taxonomic_dup_node = get_parent_num(tr_taxonomic_overlap, get_node_num_by_name(tr_taxonomic_overlap, "Genus_species_gene1"))
+dup_score_taxonomic_legacy = get_duplication_confidence_score(
+    tr_taxonomic_overlap,
+    taxonomic_dup_node,
     species_parser="legacy"
 )
-dup_score_qualified = get_duplication_confidence_score(
-    tr_qualified_overlap,
-    qualified_dup_node,
-    species_parser="qualified"
+dup_score_taxonomic = get_duplication_confidence_score(
+    tr_taxonomic_overlap,
+    taxonomic_dup_node,
+    species_parser="taxonomic"
 )
-stopifnot(identical(as.numeric(dup_score_qualified_legacy), 1))
-stopifnot(identical(as.numeric(dup_score_qualified), 0))
-so_by_root_qualified = get_root_position_dependent_species_overlap_scores(
-    tr_qualified_overlap,
+stopifnot(identical(as.numeric(dup_score_taxonomic_legacy), 1))
+stopifnot(identical(as.numeric(dup_score_taxonomic), 0))
+so_by_root_taxonomic = get_root_position_dependent_species_overlap_scores(
+    tr_taxonomic_overlap,
     nslots=1,
-    species_parser="qualified"
+    species_parser="taxonomic"
 )
-stopifnot(length(so_by_root_qualified) == nrow(tr_qualified_overlap$edge))
+stopifnot(length(so_by_root_taxonomic) == nrow(tr_taxonomic_overlap$edge))
 stopifnot(isTRUE(contains_polytomy(ape::read.tree(text="((A:1,B:1,C:1):1,D:1);"))))
 stopifnot(isFALSE(contains_polytomy(tr_unlabeled)))
 short_ext = collapse_short_external_edges(ape::read.tree(text="((A:1e-9,B:1e-9):1,C:1);"), threshold=1e-6)

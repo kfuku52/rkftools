@@ -9,11 +9,7 @@
         arg_name=arg_name,
         allow_empty=FALSE
     )
-    parser_aliases = c('qualified_gg'='qualified')
-    if (value %in% names(parser_aliases)) {
-        value = unname(parser_aliases[[value]])
-    }
-    supported_parsers = c('legacy', 'qualified')
+    supported_parsers = c('legacy', 'taxonomic')
     if (!(value %in% supported_parsers)) {
         stop(
             arg_name,
@@ -25,7 +21,7 @@
     value
 }
 
-.qualified_species_parser_token_count = function(split_label) {
+.taxonomic_species_parser_token_count = function(split_label) {
     species_len = 2L
     if (length(split_label) < species_len) {
         return(length(split_label))
@@ -68,7 +64,7 @@
     if (species_parser == 'legacy') {
         species_len = 2L
     } else {
-        species_len = .qualified_species_parser_token_count(split_label)
+        species_len = .taxonomic_species_parser_token_count(split_label)
     }
     if (length(split_label) < species_len || species_len < 2L) {
         return(list(ok=FALSE, species_tokens=character(0), has_gene=FALSE))
