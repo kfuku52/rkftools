@@ -590,6 +590,88 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
     )
 }
 
+.align_l1ou_trait_columns = function(param_table, param_name, trait_cols) {
+    if (ncol(param_table) != length(trait_cols)) {
+        stop(
+            'pcm_out$',
+            param_name,
+            ' must have ',
+            length(trait_cols),
+            ' column(s) to match pcm_out$Y.'
+        )
+    }
+
+    param_cols = colnames(param_table)
+    if (is.null(param_cols)) {
+        colnames(param_table) = trait_cols
+        return(param_table)
+    }
+    if (anyDuplicated(param_cols)) {
+        duplicated_cols = unique(param_cols[duplicated(param_cols)])
+        stop(
+            'Duplicate column name(s) in pcm_out$',
+            param_name,
+            ': ',
+            paste(duplicated_cols, collapse=', ')
+        )
+    }
+
+    missing_cols = setdiff(trait_cols, param_cols)
+    extra_cols = setdiff(param_cols, trait_cols)
+    if (length(missing_cols) || length(extra_cols)) {
+        stop(
+            'Column names of pcm_out$',
+            param_name,
+            ' must match pcm_out$Y. Missing: ',
+            ifelse(length(missing_cols), paste(missing_cols, collapse=', '), 'none'),
+            '. Extra: ',
+            ifelse(length(extra_cols), paste(extra_cols, collapse=', '), 'none'),
+            '.'
+        )
+    }
+
+    param_table[, trait_cols, drop=FALSE]
+}
+
+.get_node_depths_from_root = function(tree) {
+    edge = tree[['edge']]
+    root_candidates = setdiff(unique(edge[,1]), unique(edge[,2]))
+    if (length(root_candidates) != 1L) {
+        stop('Unable to identify a unique root node while ordering shift.configuration.')
+    }
+
+    depths = rep(NA_integer_, max(edge))
+    root_node = root_candidates[[1]]
+    depths[root_node] = 0L
+    children_by_parent = split(edge[,2], edge[,1])
+    current_nodes = root_node
+    while (length(current_nodes)) {
+        next_nodes = integer(0)
+        for (parent_node in current_nodes) {
+            children = children_by_parent[[as.character(parent_node)]]
+            if (!is.null(children)) {
+                depths[children] = depths[parent_node] + 1L
+                next_nodes = c(next_nodes, children)
+            }
+        }
+        current_nodes = next_nodes
+    }
+    depths
+}
+
+.order_shift_indices_ancestor_first = function(tree, shift_idx) {
+    if (length(shift_idx) == 0L) {
+        return(integer(0))
+    }
+    node_depths = .get_node_depths_from_root(tree)
+    child_nodes = tree[['edge']][shift_idx,2]
+    shift_depths = node_depths[child_nodes]
+    if (any(is.na(shift_depths))) {
+        stop('Unable to order shift.configuration by tree depth.')
+    }
+    order(shift_depths, seq_along(shift_idx), na.last=TRUE)
+}
+
 get_regime_table = function(pcm_out, mode) {
     mode = .normalize_single_string_arg(
         value=mode,
@@ -606,7 +688,7 @@ get_regime_table = function(pcm_out, mode) {
         column_names = c("regime", "node_name", "param", cols)
         regime_table = data.frame(matrix(0,0,ncol(pcm_out$Y)+3))
         colnames(regime_table) = column_names
-        shift_conf_raw = sort(pcm_out$shift.configuration, decreasing=TRUE, na.last=TRUE)
+        shift_conf_raw = pcm_out$shift.configuration
         shift_conf = suppressWarnings(as.integer(shift_conf_raw))
         if (length(shift_conf) != length(shift_conf_raw) || any(is.na(shift_conf))) {
             stop('shift.configuration must contain integer edge indices in get_regime_table(mode="l1ou").')
@@ -735,6 +817,9 @@ get_regime_table = function(pcm_out, mode) {
     if (is.null(shift_names)) {
         shift_names = rep(NA_character_, length(shift_idx))
     }
+    shift_order = .order_shift_indices_ancestor_first(tree, shift_idx)
+    shift_idx = shift_idx[shift_order]
+    shift_names = shift_names[shift_order]
     out_leaf_regimes = leaf_regimes
     table_leaves = as.character(out_leaf_regimes[['label']])
     for (i in seq_along(shift_idx)) {
@@ -772,7 +857,7 @@ get_leaf_regimes = function(pcm_out, mode) {
             )
         }
         leaf_regimes = data.frame(regime=0, label=tree[['tip.label']])
-        shift_conf = sort(pcm_out[['shift.configuration']], decreasing=TRUE, na.last=TRUE)
+        shift_conf = pcm_out[['shift.configuration']]
         if ((length(shift_conf)>0)&(is.null(names(shift_conf)))) {
             names(shift_conf) = seq_along(shift_conf)
         }
@@ -819,8 +904,14 @@ get_leaf_table = function(pcm_out, mode) {
             residuals=pcm_out$residuals
         )
         for (param_name in names(param2table)) {
-            param_table = param2table[[param_name]]
-            param_table = as.data.frame(param_table, stringsAsFactors=FALSE)
+            param_table_raw = param2table[[param_name]]
+            param_col_names = colnames(param_table_raw)
+            param_table = as.data.frame(param_table_raw, stringsAsFactors=FALSE)
+            if (!is.null(param_col_names)) {
+                colnames(param_table) = param_col_names
+            } else {
+                colnames(param_table) = NULL
+            }
             param_row_names = rownames(param_table)
             if (!is.null(param_row_names)) {
                 if (anyDuplicated(param_row_names)) {
@@ -852,9 +943,7 @@ get_leaf_table = function(pcm_out, mode) {
                     ' row(s) to match tree tips.'
                 )
             }
-            if (is.null(colnames(param_table))) {
-                colnames(param_table) = trait_cols
-            }
+            param_table = .align_l1ou_trait_columns(param_table, param_name, trait_cols)
             tmp_table = cbind(leaf_regimes, param_name, param_table)
             colnames(tmp_table) = column_names
             leaf_table = rbind(leaf_table, tmp_table)

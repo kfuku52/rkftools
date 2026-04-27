@@ -99,6 +99,17 @@ mad_vector_ncpu = MAD_parallel(tr, output_mode="newick", ncpu=c(1L, 2L))
 stopifnot(length(mad_vector_ncpu) == length(mad_n1))
 mad_serial = MAD(tr, output_mode="newick")
 stopifnot(length(mad_serial) == length(mad_n1))
+tr_no_edge_length = tr
+tr_no_edge_length$edge.length = NULL
+mad_no_edge_length_err = tryCatch(
+    {
+        MAD(tr_no_edge_length, output_mode="newick")
+        NULL
+    },
+    error=function(e) e
+)
+stopifnot(!is.null(mad_no_edge_length_err))
+stopifnot(grepl("no branch lengths", conditionMessage(mad_no_edge_length_err), fixed=TRUE))
 mad_mode_na_err = tryCatch(
     {
         MAD(tr, output_mode=NA_character_)
@@ -583,6 +594,20 @@ pcm_reg = list(
 regime_tbl = get_regime_table(pcm_reg, mode="l1ou")
 stopifnot(any(as.character(regime_tbl$regime) == "regA"))
 stopifnot(any(as.character(regime_tbl$regime) == "regB"))
+regime_tbl_shift_values = regime_tbl[as.character(regime_tbl$param) == "shift_value",,drop=FALSE]
+stopifnot(identical(as.character(regime_tbl_shift_values$regime), c("regA", "regB")))
+stopifnot(identical(as.numeric(regime_tbl_shift_values$t1), c(0.1, 0.2)))
+pcm_reg_reversed = pcm_reg
+pcm_reg_reversed$shift.configuration = structure(c(2L, 1L), names=c("regB", "regA"))
+pcm_reg_reversed$shift.values = matrix(c(0.2, 0.1), ncol=1)
+pcm_reg_reversed$shift.means = matrix(c(1.2, 1.1), ncol=1)
+regime_tbl_reversed = get_regime_table(pcm_reg_reversed, mode="l1ou")
+regime_tbl_reversed_shift_values = regime_tbl_reversed[
+    as.character(regime_tbl_reversed$param) == "shift_value",,
+    drop=FALSE
+]
+stopifnot(identical(as.character(regime_tbl_reversed_shift_values$regime), c("regB", "regA")))
+stopifnot(identical(as.numeric(regime_tbl_reversed_shift_values$t1), c(0.2, 0.1)))
 regime_tbl_mode_na_err = tryCatch(
     {
         get_regime_table(pcm_reg, mode=NA_character_)
@@ -643,6 +668,14 @@ stopifnot(!is.null(regime_tbl_na_shift_err))
 stopifnot(grepl("must contain integer edge indices", conditionMessage(regime_tbl_na_shift_err), fixed=TRUE))
 leaf_regimes_ok = get_leaf_regimes(pcm_reg, mode="l1ou")
 stopifnot(identical(as.character(leaf_regimes_ok$label), as.character(tr_unlabeled$tip.label)))
+leaf_regime_by_label = setNames(as.character(leaf_regimes_ok$regime), as.character(leaf_regimes_ok$label))
+stopifnot(identical(leaf_regime_by_label[c("A", "B", "C")], c(A="regB", B="regA", C="0")))
+leaf_regimes_reversed = get_leaf_regimes(pcm_reg_reversed, mode="l1ou")
+leaf_regime_reversed_by_label = setNames(
+    as.character(leaf_regimes_reversed$regime),
+    as.character(leaf_regimes_reversed$label)
+)
+stopifnot(identical(leaf_regime_reversed_by_label[c("A", "B", "C")], c(A="regB", B="regA", C="0")))
 leaf_regimes_mode_na_err = tryCatch(
     {
         get_leaf_regimes(pcm_reg, mode=NA_character_)
@@ -719,6 +752,48 @@ leaf_tbl_reordered = get_leaf_table(pcm_leaf_reordered, mode="l1ou")
 leaf_tbl_reordered_y = leaf_tbl_reordered[as.character(leaf_tbl_reordered$param) == "Y",,drop=FALSE]
 stopifnot(identical(as.character(leaf_tbl_reordered_y$node_name), as.character(tr_unlabeled$tip.label)))
 stopifnot(identical(as.numeric(leaf_tbl_reordered_y$t1), c(10, 20, 30)))
+pcm_leaf_reordered_cols = list(
+    tree=tr_unlabeled,
+    Y=data.frame(
+        t1=c(1, 2, 3),
+        t2=c(4, 5, 6),
+        row.names=tr_unlabeled$tip.label
+    ),
+    shift.configuration=structure(integer(0), names=NULL),
+    optima=data.frame(
+        t2=c(40, 50, 60),
+        t1=c(10, 20, 30),
+        row.names=tr_unlabeled$tip.label
+    ),
+    mu=data.frame(
+        t2=c(400, 500, 600),
+        t1=c(100, 200, 300),
+        row.names=tr_unlabeled$tip.label
+    ),
+    residuals=data.frame(
+        t2=c(4000, 5000, 6000),
+        t1=c(1000, 2000, 3000),
+        row.names=tr_unlabeled$tip.label
+    )
+)
+leaf_tbl_reordered_cols = get_leaf_table(pcm_leaf_reordered_cols, mode="l1ou")
+leaf_tbl_reordered_cols_optima = leaf_tbl_reordered_cols[
+    as.character(leaf_tbl_reordered_cols$param) == "optima",,
+    drop=FALSE
+]
+stopifnot(identical(as.numeric(leaf_tbl_reordered_cols_optima$t1), c(10, 20, 30)))
+stopifnot(identical(as.numeric(leaf_tbl_reordered_cols_optima$t2), c(40, 50, 60)))
+pcm_leaf_bad_col = pcm_leaf_reordered_cols
+colnames(pcm_leaf_bad_col$optima) = c("t2", "wrong_trait")
+leaf_tbl_bad_col_err = tryCatch(
+    {
+        get_leaf_table(pcm_leaf_bad_col, mode="l1ou")
+        NULL
+    },
+    error=function(e) e
+)
+stopifnot(!is.null(leaf_tbl_bad_col_err))
+stopifnot(grepl("must match pcm_out$Y", conditionMessage(leaf_tbl_bad_col_err), fixed=TRUE))
 tree_table_collapsed = data.frame(
     num_shift=0,
     num_regime=1,

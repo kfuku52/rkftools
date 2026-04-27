@@ -586,6 +586,12 @@ get_rooted_newick = function(t, madr, rho) {
         warning("Input tree is not binary! Internal multifurcations will be converted to branches of length zero and identical OTUs will be collapsed!")
         t = ape::multi2di(t)
     }
+    if (is.null(t$edge.length)) {
+        stop("Input tree has no branch lengths. MAD requires branch lengths.")
+    }
+    if (length(t$edge.length) != nrow(t$edge) || any(is.na(t$edge.length))) {
+        stop("Input tree contains missing branch lengths. MAD requires complete branch lengths.")
+    }
     has_negative = (t$edge.length < 0)
     if (any(has_negative)) {
         warning("Input tree contains negative branch lengths. They will be converted to zeros!")
