@@ -1021,6 +1021,24 @@ tbl_phy_dist = cophenetic(tbl_phy)[c("A", "B"), c("A", "B")]
 tbl_phy_expected = matrix(c(0, 0.3, 0.3, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
 stopifnot(isTRUE(all.equal(tbl_phy_dist, tbl_phy_expected, tolerance=1e-10)))
 
+tbl_zero_sister_dist = tbl
+tbl_zero_sister_dist$dist[tbl_zero_sister_dist$branch_id == 1L] = 0
+tbl_zero_sister_dist_phy = table2phylo(tbl_zero_sister_dist, name_col="label", dist_col="dist")
+stopifnot(inherits(tbl_zero_sister_dist_phy, "phylo"))
+stopifnot(setequal(tbl_zero_sister_dist_phy$tip.label, c("A", "B")))
+tbl_zero_sister_dist_dist = cophenetic(tbl_zero_sister_dist_phy)[c("A", "B"), c("A", "B")]
+tbl_zero_sister_dist_expected = matrix(c(0, 0.20000001, 0.20000001, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
+stopifnot(isTRUE(all.equal(tbl_zero_sister_dist_dist, tbl_zero_sister_dist_expected, tolerance=1e-10)))
+
+tbl_short_sister_dist = tbl
+tbl_short_sister_dist$dist[tbl_short_sister_dist$branch_id == 1L] = 5e-9
+tbl_short_sister_dist_phy = table2phylo(tbl_short_sister_dist, name_col="label", dist_col="dist")
+stopifnot(inherits(tbl_short_sister_dist_phy, "phylo"))
+stopifnot(setequal(tbl_short_sister_dist_phy$tip.label, c("A", "B")))
+tbl_short_sister_dist_dist = cophenetic(tbl_short_sister_dist_phy)[c("A", "B"), c("A", "B")]
+tbl_short_sister_dist_expected = matrix(c(0, 0.20000001, 0.20000001, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
+stopifnot(isTRUE(all.equal(tbl_short_sister_dist_dist, tbl_short_sister_dist_expected, tolerance=1e-10)))
+
 tbl_root_dist_na = tbl
 tbl_root_dist_na$dist[tbl_root_dist_na$branch_id == 3L] = NA_real_
 tbl_root_dist_na_phy = table2phylo(tbl_root_dist_na, name_col="label", dist_col="dist")

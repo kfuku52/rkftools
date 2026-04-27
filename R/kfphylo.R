@@ -1050,6 +1050,33 @@ remove_redundant_root_edge = function(phy) {
     unname(values[[1]])
 }
 
+.table2phylo_get_edge_length_to_node = function(phy, node_num) {
+    if (is.null(phy[['edge']]) || is.null(phy[['edge.length']])) {
+        return(NA_real_)
+    }
+    edge_idx = which(phy[['edge']][, 2] == node_num)
+    if (length(edge_idx) != 1) {
+        return(NA_real_)
+    }
+    suppressWarnings(as.numeric(phy[['edge.length']][edge_idx]))
+}
+
+.table2phylo_pad_edge_to_node = function(phy, node_num, min_length=1e-8) {
+    out_phy = phy
+    if (is.null(out_phy[['edge']]) || is.null(out_phy[['edge.length']])) {
+        return(out_phy)
+    }
+    edge_idx = which(out_phy[['edge']][, 2] == node_num)
+    if (length(edge_idx) != 1) {
+        return(out_phy)
+    }
+    edge_length = suppressWarnings(as.numeric(out_phy[['edge.length']][edge_idx]))
+    if (!is.na(edge_length) && edge_length < min_length) {
+        out_phy[['edge.length']][edge_idx] = min_length
+    }
+    return(out_phy)
+}
+
 .table2phylo_add_branch = function(phy, nni, lookup, name_col, dist_col, id2value) {
     out_phy = phy
     nni_name = id2value(lookup, nni, name_col)
@@ -1078,10 +1105,22 @@ remove_redundant_root_edge = function(phy) {
 
     branch = get_single_branch_tree(nni_name, nni_dist)
     if (length(parent_num)==0) {
-        if (is.na(sister_dist)) {
-            sister_dist = 1e-8
+        min_graft_position = 1e-8
+        sister_edge_length = .table2phylo_get_edge_length_to_node(out_phy, sister_num)
+        if (!is.na(sister_edge_length) && sister_edge_length < min_graft_position) {
+            out_phy = .table2phylo_pad_edge_to_node(out_phy, sister_num, min_length=min_graft_position)
+            sister_edge_length = min_graft_position
         }
-        sister_dist = ifelse(sister_dist<1e-8, 1e-8, sister_dist)
+        if (is.na(sister_dist)) {
+            sister_dist = sister_edge_length
+        }
+        if (is.na(sister_dist)) {
+            sister_dist = min_graft_position
+        }
+        sister_dist = max(sister_dist, min_graft_position)
+        if (!is.na(sister_edge_length)) {
+            sister_dist = min(sister_dist, sister_edge_length)
+        }
         out_phy = ape::bind.tree(out_phy, branch, where=sister_num, position=sister_dist)
     } else {
         out_phy = ape::bind.tree(out_phy, branch, where=parent_num, position=0)
