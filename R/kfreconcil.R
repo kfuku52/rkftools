@@ -38,17 +38,19 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
 
 .species_overlap_score_core = function(phy, dc_cutoff=0, dc_score_fun) {
     tip_count = length(phy[['tip.label']])
-    max_node_id = max(phy[['edge']])
-    if (max_node_id <= tip_count) {
+    max_node_num = max(phy[['edge']])
+    if (max_node_num <= tip_count) {
         return(0)
     }
-    internal_nodes = seq.int(tip_count + 1, max_node_id)
+    internal_nodes = seq.int(tip_count + 1, max_node_num)
     dc_scores = vapply(internal_nodes, function(int_node) {
         dc_score_fun(phy, int_node)
     }, numeric(1))
     sum(dc_scores > dc_cutoff)
 }
 
+# Assigns compact internal species_id values for species-overlap algorithms.
+# These IDs are algorithm identifiers, not ape::phylo node numbers.
 .tip_species_id_map = function(tip_labels, species_parser='legacy', sep='_') {
     species_parser = .normalize_species_parser_arg(
         value=species_parser,

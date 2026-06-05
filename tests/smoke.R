@@ -13,6 +13,40 @@ so_by_root_vec_slots = get_root_position_dependent_species_overlap_scores(tr, ns
 stopifnot(length(so_by_root_vec_slots) == nrow(tr$edge))
 dup_score_root = get_duplication_confidence_score(tr, get_root_num(tr))
 stopifnot(isTRUE(all.equal(as.numeric(dup_score_root), 1 / 3, tolerance=1e-10)))
+
+tr_vertebrate_duplication = ape::read.tree(text=paste0(
+    "(((Homo_sapiens_geneA:0.12,Mus_musculus_geneA:0.12):0.18,",
+    "(Danio_rerio_geneA:0.16,Oryzias_latipes_geneA:0.16):0.14):0.25,",
+    "((Homo_sapiens_geneB:0.11,Mus_musculus_geneB:0.11):0.19,",
+    "(Danio_rerio_geneB:0.15,Oryzias_latipes_geneB:0.15):0.15):0.25);"
+))
+vertebrate_species = get_species_names(tr_vertebrate_duplication)
+stopifnot(setequal(
+    unique(as.character(vertebrate_species)),
+    c("Homo_sapiens", "Mus_musculus", "Danio_rerio", "Oryzias_latipes")
+))
+vertebrate_root_scores = get_root_position_dependent_species_overlap_scores(
+    tr_vertebrate_duplication,
+    nslots=1
+)
+vertebrate_root_child_edges = which(
+    tr_vertebrate_duplication$edge[,1] == get_root_num(tr_vertebrate_duplication)
+)
+stopifnot(identical(as.integer(vertebrate_root_child_edges), c(1L, 8L)))
+vertebrate_unrooted_scores = c(
+    vertebrate_root_scores[2:7],
+    vertebrate_root_scores[vertebrate_root_child_edges[1]],
+    vertebrate_root_scores[9:14]
+)
+stopifnot(identical(
+    as.numeric(vertebrate_root_scores),
+    c(1, 2, 3, 3, 2, 3, 3, 1, 2, 3, 3, 2, 3, 3)
+))
+stopifnot(identical(
+    as.numeric(vertebrate_unrooted_scores),
+    c(2, 3, 3, 2, 3, 3, 1, 2, 3, 3, 2, 3, 3)
+))
+stopifnot(identical(which(vertebrate_unrooted_scores == min(vertebrate_unrooted_scores)), 7L))
 stopifnot(identical(as.character(get_species_name("A_B_gene1", species_parser="legacy")), "A B"))
 stopifnot(identical(as.character(get_species_name("A_cf_B_gene1", species_parser="taxonomic")), "A cf B"))
 stopifnot(identical(as.character(get_species_name("Amoeba_sp_JDSRuffled_gene1", species_parser="taxonomic")), "Amoeba sp JDSRuffled"))
@@ -1095,6 +1129,67 @@ stopifnot(setequal(tbl_phy$tip.label, c("A", "B")))
 tbl_phy_dist = cophenetic(tbl_phy)[c("A", "B"), c("A", "B")]
 tbl_phy_expected = matrix(c(0, 0.3, 0.3, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
 stopifnot(isTRUE(all.equal(tbl_phy_dist, tbl_phy_expected, tolerance=1e-10)))
+
+tbl_phy2table = phylo2table(tbl_phy, name_col="label", dist_col="dist")
+stopifnot(identical(as.character(colnames(tbl_phy2table)), c("branch_id", "parent", "sister", "label", "dist")))
+stopifnot(!any(is.na(suppressWarnings(as.integer(tbl_phy2table$branch_id)))))
+stopifnot(!any(is.na(suppressWarnings(as.integer(tbl_phy2table$parent)))))
+stopifnot(!any(is.na(suppressWarnings(as.integer(tbl_phy2table$sister)))))
+stopifnot(setequal(as.character(tbl_phy2table$label), c("A", "B", "Root")))
+tbl_phy_roundtrip = table2phylo(tbl_phy2table, name_col="label", dist_col="dist")
+stopifnot(inherits(tbl_phy_roundtrip, "phylo"))
+stopifnot(setequal(tbl_phy_roundtrip$tip.label, tbl_phy$tip.label))
+roundtrip_dist = cophenetic(tbl_phy_roundtrip)[c("A", "B"), c("A", "B")]
+stopifnot(isTRUE(all.equal(roundtrip_dist, tbl_phy_expected, tolerance=1e-10)))
+
+tbl_readme = data.frame(
+    branch_id=c(6L, 2L, 0L, 1L, 5L, 3L, 4L),
+    parent=c(-999L, 6L, 2L, 2L, 6L, 5L, 5L),
+    sister=c(-999L, 5L, 1L, 0L, 2L, 4L, 3L),
+    node_name=c("Root", "Clade_AB", "A", "B", "Clade_CD", "C", "D"),
+    dist=c(0, 0.42, 0.16, 0.18, 0.50, 0.22, 0.25),
+    stringsAsFactors=FALSE
+)
+tbl_readme_phy = table2phylo(tbl_readme, name_col="node_name", dist_col="dist")
+tbl_readme_newick = ape::write.tree(tbl_readme_phy)
+tbl_readme_phy_from_newick = ape::read.tree(text=tbl_readme_newick)
+tbl_readme_dist = cophenetic(tbl_readme_phy)[c("A", "B", "C", "D"), c("A", "B", "C", "D")]
+tbl_readme_expected = matrix(
+    c(
+        0, 0.34, 1.30, 1.33,
+        0.34, 0, 1.32, 1.35,
+        1.30, 1.32, 0, 0.47,
+        1.33, 1.35, 0.47, 0
+    ),
+    nrow=4,
+    byrow=TRUE,
+    dimnames=list(c("A", "B", "C", "D"), c("A", "B", "C", "D"))
+)
+tbl_readme_newick_dist = cophenetic(tbl_readme_phy_from_newick)[c("A", "B", "C", "D"), c("A", "B", "C", "D")]
+stopifnot(isTRUE(all.equal(tbl_readme_dist, tbl_readme_expected, tolerance=1e-10)))
+stopifnot(isTRUE(all.equal(tbl_readme_newick_dist, tbl_readme_expected, tolerance=1e-10)))
+tbl_readme_roundtrip = phylo2table(tbl_readme_phy_from_newick, name_col="node_name", dist_col="dist")
+stopifnot(identical(as.character(colnames(tbl_readme_roundtrip)), c("branch_id", "parent", "sister", "node_name", "dist")))
+stopifnot(!any(is.na(suppressWarnings(as.integer(tbl_readme_roundtrip$branch_id)))))
+stopifnot(!any(is.na(suppressWarnings(as.integer(tbl_readme_roundtrip$parent)))))
+stopifnot(!any(is.na(suppressWarnings(as.integer(tbl_readme_roundtrip$sister)))))
+stopifnot(isTRUE(all.equal(tbl_readme_roundtrip, tbl_readme, check.attributes=FALSE, tolerance=1e-10)))
+tbl_readme_phy_roundtrip = table2phylo(tbl_readme_roundtrip, name_col="node_name", dist_col="dist")
+tbl_readme_roundtrip_dist = cophenetic(tbl_readme_phy_roundtrip)[c("A", "B", "C", "D"), c("A", "B", "C", "D")]
+stopifnot(isTRUE(all.equal(tbl_readme_roundtrip_dist, tbl_readme_expected, tolerance=1e-10)))
+
+tbl_single_phylo2table = phylo2table(get_single_branch_tree("A", 0.1), name_col="label", dist_col="dist")
+tbl_single_phylo2table_expected = data.frame(
+    branch_id=c(1L, 0L),
+    parent=c(-999L, 1L),
+    sister=c(-999L, -999L),
+    label=c("n0", "A"),
+    dist=c(0, 0.1),
+    stringsAsFactors=FALSE
+)
+stopifnot(isTRUE(all.equal(tbl_single_phylo2table, tbl_single_phylo2table_expected, check.attributes=FALSE, tolerance=1e-10)))
+tbl_single_phylo2table_phy = table2phylo(tbl_single_phylo2table, name_col="label", dist_col="dist")
+stopifnot(identical(as.character(tbl_single_phylo2table_phy$tip.label), "A"))
 
 tbl_zero_sister_dist = tbl
 tbl_zero_sister_dist$dist[tbl_zero_sister_dist$branch_id == 1L] = 0

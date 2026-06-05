@@ -65,6 +65,7 @@
 \alias{restore_imputed_leaves}
 \alias{sort_exp}
 \alias{table2phylo}
+\alias{phylo2table}
 \alias{transfer_node_labels}
 \alias{tree_table_collapse2original}
 

@@ -3,6 +3,28 @@
 # Created by: kf
 # Created on: 3/22/18
 
+# Naming convention for phylogenetic identifiers in this package:
+# * *_num is an ape::phylo node number. These are the integer node indices used
+#   in phy[['edge']], with tips numbered before internal nodes.
+# * *_name is a biological or display label, usually from phy[['tip.label']] or
+#   phy[['node.label']]. In branch tables this role is often held by a column
+#   such as node_name, label, or another user-specified name_col.
+# * *_id is a table or algorithm identifier, not necessarily an ape node number.
+#   In branch tables, branch_id/parent/sister are *_id values that identify rows
+#   and refer to each other. Other local *_id values, such as species_ids in
+#   reconciliation helpers or branch_ids in MAD helpers, are compact
+#   algorithm-specific indices.
+# * Current *_id assignment sites are phylo2table(), which assigns branch-table
+#   branch_id/parent/sister values from a bare ape::phylo; .tip_species_id_map(),
+#   which assigns internal species_ids for species-overlap calculations; and
+#   .compute_mad_scores(), which creates local branch_ids for iterating over edge
+#   rows. Most other functions consume *_id values supplied by input tables or
+#   use them only as local algorithm indices.
+# * table2phylo() consumes branch-table *_id values and resolves
+#   *_id -> *_name -> *_num while constructing an ape::phylo.
+# * Because a phylo does not preserve original input branch_id values,
+#   phylo2table() generates numerical *_id values from clade signatures, matching
+#   genegalleon's numerical_label convention.
 
 get_node_num_by_name = function(phy, node_name) {
     node_names = c(phy[['tip.label']], phy$node.label)
@@ -972,6 +994,7 @@ remove_redundant_root_edge = function(phy) {
     return(out_phy)
 }
 
+# See the file-level naming convention above for *_num, *_id, and *_name.
 .table2phylo_is_parent_sentinel = function(values) {
     if (is.factor(values)) {
         values = as.character(values)
@@ -1270,6 +1293,166 @@ table2phylo = function(df, name_col, dist_col) {
         max_iter=max_iter
     )
     return(phy)
+}
+
+.phylo2table_get_descendant_tip_nums = function(phy, node_num, num_tip) {
+    if (node_num <= num_tip) {
+        return(node_num)
+    }
+    get_descendent_num(phy, node_num, leaf_only=TRUE)
+}
+
+.phylo2table_make_clade_signature = function(tip_nums, tip_rank_by_num, num_tip) {
+    tip_ranks = as.integer(tip_rank_by_num[as.character(tip_nums)])
+    if (any(is.na(tip_ranks))) {
+        stop('phylo2table() could not rank descendant tips for a clade.')
+    }
+    clade_bits = rep('0', num_tip)
+    clade_bits[num_tip - tip_ranks + 1L] = '1'
+    paste0(clade_bits, collapse='')
+}
+
+.phylo2table_make_branch_id_map = function(phy, node_nums) {
+    num_tip = length(phy[['tip.label']])
+    tip_order = order(as.character(phy[['tip.label']]))
+    tip_rank_by_num = integer(num_tip)
+    tip_rank_by_num[tip_order] = seq_len(num_tip)
+    names(tip_rank_by_num) = as.character(seq_len(num_tip))
+
+    clade_signatures = vapply(
+        X=node_nums,
+        FUN=function(node_num) {
+            tip_nums = .phylo2table_get_descendant_tip_nums(
+                phy=phy,
+                node_num=node_num,
+                num_tip=num_tip
+            )
+            .phylo2table_make_clade_signature(
+                tip_nums=tip_nums,
+                tip_rank_by_num=tip_rank_by_num,
+                num_tip=num_tip
+            )
+        },
+        FUN.VALUE=character(1)
+    )
+    clade_order = order(clade_signatures, node_nums)
+    branch_ids = integer(length(node_nums))
+    branch_ids[clade_order] = seq_along(node_nums) - 1L
+    names(branch_ids) = as.character(node_nums)
+    branch_ids
+}
+
+phylo2table = function(phy, name_col='label', dist_col='dist') {
+    if (!inherits(phy, 'phylo')) {
+        stop('phy must be an object of class "phylo".')
+    }
+    name_col = .normalize_single_string_arg(
+        value=name_col,
+        arg_name='name_col',
+        allow_empty=FALSE
+    )
+    dist_col = .normalize_single_string_arg(
+        value=dist_col,
+        arg_name='dist_col',
+        allow_empty=FALSE
+    )
+    reserved_cols = c('branch_id', 'parent', 'sister')
+    if (name_col %in% reserved_cols) {
+        stop('name_col must not be one of: ', paste(reserved_cols, collapse=', '))
+    }
+    if (dist_col %in% c(reserved_cols, name_col)) {
+        stop('dist_col must not duplicate branch_id, parent, sister, or name_col.')
+    }
+    if (is.null(phy[['edge']]) || nrow(phy[['edge']]) == 0) {
+        stop('phylo2table() requires a tree with at least one edge.')
+    }
+    if (!ape::is.rooted(phy)) {
+        stop('phylo2table() requires a rooted tree.')
+    }
+    if (is.null(phy[['edge.length']]) || length(phy[['edge.length']]) != nrow(phy[['edge']])) {
+        stop('phylo2table() requires branch lengths for all edges.')
+    }
+
+    num_tip = length(phy[['tip.label']])
+    num_internal = as.integer(phy[['Nnode']])
+    internal_nodes = seq.int(num_tip + 1L, num_tip + num_internal)
+    max_node = max(phy[['edge']])
+    node_name_by_num = rep(NA_character_, max_node)
+    node_name_by_num[seq_len(num_tip)] = as.character(phy[['tip.label']])
+
+    internal_node_names = phy[['node.label']]
+    if (is.null(internal_node_names)) {
+        internal_node_names = rep(NA_character_, num_internal)
+    } else {
+        internal_node_names = as.character(internal_node_names)
+        if (length(internal_node_names) < num_internal) {
+            internal_node_names = c(internal_node_names, rep(NA_character_, num_internal - length(internal_node_names)))
+        } else if (length(internal_node_names) > num_internal) {
+            internal_node_names = internal_node_names[seq_len(num_internal)]
+        }
+    }
+    missing_node_names = is.na(internal_node_names) | (trimws(internal_node_names) == '')
+    internal_node_names[missing_node_names] = paste0('n', seq_len(sum(missing_node_names)) - 1L)
+    node_name_by_num[internal_nodes] = internal_node_names
+
+    node_nums = sort(unique(as.integer(c(phy[['edge']]))))
+    node_names_for_table = node_name_by_num[node_nums]
+    missing_node_names_for_table = is.na(node_names_for_table) | (trimws(node_names_for_table) == '')
+    if (any(missing_node_names_for_table)) {
+        stop('phylo2table() could not resolve labels for all nodes.')
+    }
+    if (anyDuplicated(node_names_for_table)) {
+        duplicated_node_names = unique(node_names_for_table[duplicated(node_names_for_table)])
+        stop('phylo2table() requires unique tip and node labels. Duplicated label(s): ',
+             paste(duplicated_node_names, collapse=', '))
+    }
+
+    root_num = get_root_num(phy)
+    if (length(root_num) != 1) {
+        stop('phylo2table() requires a tree with exactly one root.')
+    }
+    branch_id_by_node_num = .phylo2table_make_branch_id_map(
+        phy=phy,
+        node_nums=node_nums
+    )
+    child_nums_by_parent_num = split(phy[['edge']][,2], phy[['edge']][,1])
+    parent_num_by_child_num = stats::setNames(phy[['edge']][,1], phy[['edge']][,2])
+    edge_length_by_child_num = stats::setNames(phy[['edge.length']], phy[['edge']][,2])
+    ordered_nodes = c(root_num, as.integer(phy[['edge']][,2]))
+
+    table_rows = lapply(ordered_nodes, function(node_num) {
+        if (node_num == root_num) {
+            parent_id = -999L
+            sister_id = -999L
+            branch_dist = 0
+        } else {
+            parent_num = as.integer(parent_num_by_child_num[as.character(node_num)])
+            sister_nums = setdiff(as.integer(child_nums_by_parent_num[[as.character(parent_num)]]), node_num)
+            if (length(sister_nums) == 0 && parent_num == root_num) {
+                sister_id = -999L
+            } else if (length(sister_nums) == 1) {
+                sister_id = unname(branch_id_by_node_num[as.character(sister_nums)])
+            } else {
+                stop('phylo2table() currently requires a binary rooted tree.')
+            }
+            parent_id = unname(branch_id_by_node_num[as.character(parent_num)])
+            branch_dist = as.numeric(edge_length_by_child_num[as.character(node_num)])
+        }
+        data.frame(
+            branch_id=unname(branch_id_by_node_num[as.character(node_num)]),
+            parent=parent_id,
+            sister=sister_id,
+            label=unname(node_name_by_num[node_num]),
+            dist=branch_dist,
+            stringsAsFactors=FALSE
+        )
+    })
+
+    out_table = do.call(rbind, table_rows)
+    rownames(out_table) = NULL
+    colnames(out_table)[colnames(out_table) == 'label'] = name_col
+    colnames(out_table)[colnames(out_table) == 'dist'] = dist_col
+    return(out_table)
 }
 
 fill_node_labels = function(phy) {
