@@ -1,6 +1,6 @@
 # Overview
 [![R-CMD-check](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml/badge.svg)](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml)
-[![Version](https://img.shields.io/badge/version-0.1.6-informational)](https://github.com/kfuku52/rkftools)
+[![Version](https://img.shields.io/badge/version-0.1.7-informational)](https://github.com/kfuku52/rkftools)
 [![R](https://img.shields.io/badge/R-%3E%3D%204.1.0-276DC3?logo=r)](https://www.r-project.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.md)
 [![Last commit](https://img.shields.io/github/last-commit/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/commits/master)
@@ -45,6 +45,9 @@ remotes::install_github("kfuku52/rkftools", ref = "master")
 `branch_id`, while `node_name` stores the tip or internal-node label.
 `phylo2table()` returns the same schema with numerical labels generated from
 clade signatures, matching genegalleon's `numerical_label` convention.
+`table2phylo()` validates that the table describes one connected rooted tree
+with at most two children per node, checks reciprocal sister relationships,
+and preserves exact zero-length branches.
 
 ```r
 library(rkftools)
@@ -90,9 +93,25 @@ candidate root branch is branch 7.
 ![root-position species-overlap score example](man/figures/root_position_species_overlap.png)
 
 # Parallel tuning
-`MAD_parallel()` automatically uses available CPU cores when `ncpu` is omitted.
+`MAD_parallel()` automatically uses available CPU cores when `ncpu` is omitted,
+caps automatic parallelism at eight cores, and avoids parallel overhead for
+small trees. Root-position species-overlap scoring now uses one bidirectional
+tree traversal, so its legacy `nslots` argument is accepted for compatibility
+but no worker pool is needed.
 
 To cap cores globally:
 ```r
 options(rkftools.max_cores = 8)
 ```
+
+# Input validation and optional integrations
+
+Tree and trait helpers reject disconnected trees, duplicated tip labels,
+malformed species identifiers, duplicated trait rows, and non-finite values
+where these would make a result unreliable. Repeated internal-node labels such
+as bootstrap values remain supported. `get_parsed_args()` does not print by
+default; when printing is requested, credential-like values are redacted.
+
+Functions backed by optional packages produce an installation error naming the
+required package. Install `PhylogeneticEM` or `Rphylopars` when using their
+corresponding modes or imputation helper.

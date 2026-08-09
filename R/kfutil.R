@@ -7,6 +7,16 @@
     if (length(value) != 1) {
         return(value)
     }
+    if (grepl('^[+-]?0[0-9]+$', value)) {
+        return(value)
+    }
+    is_numeric_literal = grepl(
+        '^[+-]?((0|[1-9][0-9]*)(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$',
+        value
+    )
+    if (!is_numeric_literal) {
+        return(value)
+    }
     numeric_value = suppressWarnings(as.numeric(value))
     if (!is.na(numeric_value)) {
         return(numeric_value)
@@ -19,6 +29,9 @@
         stop('Invalid long argument: argument must be a single non-missing string.')
     }
     arg = as.character(arg)
+    if (!startsWith(arg, '--')) {
+        stop('Invalid long argument: expected a "--name" or "--name=value" argument, got "', arg, '".')
+    }
     normalized = sub("^--", "", arg)
     eq_pos = regexpr("=", normalized, fixed=TRUE)[1]
     if (eq_pos == -1) {
@@ -58,7 +71,19 @@
     logical_value
 }
 
-get_parsed_args = function(args, print=TRUE) {
+.normalize_choice_arg = function(value, arg_name, choices) {
+    value = .normalize_single_string_arg(value, arg_name, allow_empty=FALSE)
+    if (!(value %in% choices)) {
+        stop(
+            arg_name, ' must be one of: ',
+            paste(sprintf('"%s"', choices), collapse=', '),
+            '.'
+        )
+    }
+    value
+}
+
+get_parsed_args = function(args, print=FALSE) {
     print = .normalize_single_logical_arg(
         value=print,
         arg_name='print'
@@ -72,11 +97,18 @@ get_parsed_args = function(args, print=TRUE) {
     }
     for (arg in args) {
         parsed_item = .parse_long_arg(arg)
+        if (parsed_item[['param']] %in% names(parsed)) {
+            stop('Duplicate long argument: --', parsed_item[['param']])
+        }
         parsed[[parsed_item[['param']]]] = parsed_item[['value']]
     }
     if (print) {
         for (name in names(parsed)) {
-            cat(name, '=', parsed[[name]], '\n')
+            display_value = parsed[[name]]
+            if (grepl('(token|secret|password|passwd|credential|api[-_]?key|private[-_]?key)', name, ignore.case=TRUE)) {
+                display_value = '<redacted>'
+            }
+            cat(name, '=', display_value, '\n')
         }
         cat('\n')
     }
@@ -98,7 +130,7 @@ get_parsed_args = function(args, print=TRUE) {
     if (is.na(detected_cores) || detected_cores < 1) {
         detected_cores = 1L
     }
-    auto_cores = if (detected_cores < 2) 1L else detected_cores - 1L
+    auto_cores = if (detected_cores < 2) 1L else min(detected_cores - 1L, 8L)
 
     has_requested = !(is.null(requested) || length(requested) == 0)
     requested_cores = suppressWarnings(as.integer(requested))

@@ -1197,7 +1197,7 @@ tbl_zero_sister_dist_phy = table2phylo(tbl_zero_sister_dist, name_col="label", d
 stopifnot(inherits(tbl_zero_sister_dist_phy, "phylo"))
 stopifnot(setequal(tbl_zero_sister_dist_phy$tip.label, c("A", "B")))
 tbl_zero_sister_dist_dist = cophenetic(tbl_zero_sister_dist_phy)[c("A", "B"), c("A", "B")]
-tbl_zero_sister_dist_expected = matrix(c(0, 0.20000001, 0.20000001, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
+tbl_zero_sister_dist_expected = matrix(c(0, 0.2, 0.2, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
 stopifnot(isTRUE(all.equal(tbl_zero_sister_dist_dist, tbl_zero_sister_dist_expected, tolerance=1e-10)))
 
 tbl_short_sister_dist = tbl
@@ -1206,7 +1206,7 @@ tbl_short_sister_dist_phy = table2phylo(tbl_short_sister_dist, name_col="label",
 stopifnot(inherits(tbl_short_sister_dist_phy, "phylo"))
 stopifnot(setequal(tbl_short_sister_dist_phy$tip.label, c("A", "B")))
 tbl_short_sister_dist_dist = cophenetic(tbl_short_sister_dist_phy)[c("A", "B"), c("A", "B")]
-tbl_short_sister_dist_expected = matrix(c(0, 0.20000001, 0.20000001, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
+tbl_short_sister_dist_expected = matrix(c(0, 0.200000005, 0.200000005, 0), nrow=2, byrow=TRUE, dimnames=list(c("A", "B"), c("A", "B")))
 stopifnot(isTRUE(all.equal(tbl_short_sister_dist_dist, tbl_short_sister_dist_expected, tolerance=1e-10)))
 
 tbl_root_dist_na = tbl
@@ -1287,8 +1287,15 @@ tbl_partial_parent = data.frame(
     dist=c("NaN", "Inf", "x", "0"),
     stringsAsFactors=FALSE
 )
-tbl_partial_parent_phy = table2phylo(tbl_partial_parent, name_col="label", dist_col="dist")
-stopifnot(inherits(tbl_partial_parent_phy, "phylo"))
+tbl_partial_parent_err = tryCatch(
+    {
+        table2phylo(tbl_partial_parent, name_col="label", dist_col="dist")
+        NULL
+    },
+    error=function(e) e
+)
+stopifnot(!is.null(tbl_partial_parent_err))
+stopifnot(grepl("contains non-numeric value", conditionMessage(tbl_partial_parent_err), fixed=TRUE))
 tr_two_tip = ape::read.tree(text="(A:1,B:1);")
 tr_two_tip_rr = remove_redundant_root_edge(tr_two_tip)
 stopifnot(inherits(tr_two_tip_rr, "phylo"))
@@ -1332,3 +1339,192 @@ options(rkftools.max_cores=1L)
 mad_auto_capped = MAD_parallel(tr, output_mode="newick")
 stopifnot(identical(mad_n1, mad_auto_capped))
 options(rkftools.max_cores=old_max_cores)
+
+expect_error_contains = function(expr, text) {
+    error = tryCatch({
+        force(expr)
+        NULL
+    }, error=function(e) e)
+    stopifnot(!is.null(error))
+    stopifnot(grepl(text, conditionMessage(error), fixed=TRUE))
+    invisible(error)
+}
+
+# Command-line parsing is silent by default and never prints credential values.
+parsed_default_output = capture.output(parsed_default <- get_parsed_args(c("--threads=3")))
+stopifnot(identical(parsed_default_output, character(0)))
+stopifnot(identical(parsed_default$threads, 3))
+stopifnot(identical(get_parsed_args("--sample=0012")$sample, "0012"))
+parsed_secret_output = capture.output(
+    parsed_secret <- get_parsed_args(c("--api-key=do-not-print", "--threads=2"), print=TRUE)
+)
+stopifnot(identical(parsed_secret[["api-key"]], "do-not-print"))
+stopifnot(any(grepl("<redacted>", parsed_secret_output, fixed=TRUE)))
+stopifnot(!any(grepl("do-not-print", parsed_secret_output, fixed=TRUE)))
+expect_error_contains(get_parsed_args("threads=2"), 'expected a "--name"')
+expect_error_contains(get_parsed_args(c("--threads=1", "--threads=2")), "Duplicate long argument")
+
+# Replicate suffix removal retains every part of a multi-separator base name.
+rep_tbl_multi_sep = data.frame(
+    "alpha_beta_1"=c(1, 3),
+    "alpha_beta_2"=c(3, 5),
+    check.names=FALSE
+)
+rep_multi_sep = merge_replicates(rep_tbl_multi_sep, "_")
+stopifnot(identical(colnames(rep_multi_sep), "alpha_beta"))
+stopifnot(identical(get_expression_bases(rep_tbl_multi_sep, "_"), "alpha_beta"))
+
+# Undefined correlations do not make a clade look perfectly similar.
+undefined_similarity_traits = data.frame(
+    t1=c(1, 2, 3),
+    t2=c(1, 2, 4),
+    row.names=c("A", "B", "C")
+)
+undefined_similarity = get_high_similarity_clades(
+    tr_unlabeled,
+    undefined_similarity_traits,
+    method="pearson",
+    threshold=0.9
+)
+stopifnot(length(undefined_similarity) == 0)
+expect_error_contains(
+    get_high_similarity_clades(
+        tr_unlabeled,
+        data.frame(t1=c(1, 2, 3), label=c("x", "y", "z"), row.names=c("A", "B", "C")),
+        method="pearson",
+        threshold=0.9
+    ),
+    "numeric or logical trait columns"
+)
+
+# L1OU parameter values are aligned by trait name and remain numeric.
+pcm_reg_named = pcm_reg_multi
+pcm_reg_named$shift.values = matrix(
+    c(20, 10, 40, 30),
+    nrow=2,
+    byrow=TRUE,
+    dimnames=list(NULL, c("t2", "t1"))
+)
+pcm_reg_named$shift.means = matrix(
+    c(120, 110, 140, 130),
+    nrow=2,
+    byrow=TRUE,
+    dimnames=list(NULL, c("t2", "t1"))
+)
+pcm_reg_named$alpha = c(t2=2, t1=1)
+pcm_reg_named$sigma2 = c(t2=4, t1=3)
+pcm_reg_named$intercept = c(t2=6, t1=5)
+named_regimes = get_regime_table(pcm_reg_named, mode="l1ou")
+named_shift = named_regimes[named_regimes$param == "shift_value",,drop=FALSE]
+named_alpha = named_regimes[named_regimes$param == "alpha",,drop=FALSE]
+stopifnot(identical(as.numeric(named_shift[1, c("t1", "t2")]), c(10, 20)))
+stopifnot(identical(as.numeric(named_alpha[1, c("t1", "t2")]), c(1, 2)))
+stopifnot(is.numeric(named_regimes$t1), is.numeric(named_regimes$t2))
+expect_error_contains(get_tree_table(pcm_mock, mode="unsupported"), "mode must be one of")
+
+# Graph validation rejects orphaned/cyclic tables and asymmetric sisters.
+tbl_cycle = data.frame(
+    branch_id=c(1L, 2L, 3L),
+    parent=c(2L, 1L, -999L),
+    sister=c(-999L, -999L, -999L),
+    label=c("A", "B", "Root"),
+    dist=c(0.1, 0.2, 0),
+    stringsAsFactors=FALSE
+)
+expect_error_contains(table2phylo(tbl_cycle, "label", "dist"), "Disconnected or cyclic")
+tbl_bad_sister = tbl
+tbl_bad_sister$sister[tbl_bad_sister$branch_id == 2L] = 2L
+expect_error_contains(table2phylo(tbl_bad_sister, "label", "dist"), "Non-reciprocal sister")
+tbl_bad_root_sister = tbl
+tbl_bad_root_sister$sister[tbl_bad_root_sister$branch_id == 3L] = 1L
+expect_error_contains(table2phylo(tbl_bad_root_sister, "label", "dist"), "root row must have a sentinel sister")
+tbl_unknown_parent = tbl
+tbl_unknown_parent$parent[tbl_unknown_parent$branch_id == 1L] = 99L
+expect_error_contains(table2phylo(tbl_unknown_parent, "label", "dist"), "Unknown parent")
+
+tr_tip_name_collision = ape::read.tree(text="(n0:0,B:0.2);")
+tr_tip_name_collision$node.label = NULL
+collision_table = phylo2table(tr_tip_name_collision)
+stopifnot(!anyDuplicated(collision_table$label))
+stopifnot("n0" %in% collision_table$label)
+stopifnot(isTRUE(all.equal(
+    cophenetic(table2phylo(collision_table, "label", "dist")),
+    cophenetic(tr_tip_name_collision),
+    tolerance=1e-12
+)))
+tr_repeated_internal = ape::read.tree(text="((A:1,B:1)100:1,(C:1,D:1)100:1)100;")
+repeated_internal_table = phylo2table(tr_repeated_internal)
+repeated_internal_restored = table2phylo(repeated_internal_table, "label", "dist")
+stopifnot(identical(
+    as.character(repeated_internal_restored$node.label),
+    as.character(tr_repeated_internal$node.label)
+))
+
+# Only the selected near-zero internal edge is collapsed; a separate negative
+# edge is preserved with its clade and original length.
+tr_mixed_lengths = ape::read.tree(
+    text="(((A:1,B:1):-1,(C:1,D:1):0.000000001):1,E:1);"
+)
+tr_mixed_collapsed = collapse_short_branches(tr_mixed_lengths, tol=1e-8)
+stopifnot(any(tr_mixed_collapsed$edge.length == -1))
+stopifnot(isTRUE(ape::is.monophyletic(tr_mixed_collapsed, c("A", "B"))))
+stopifnot(!isTRUE(ape::is.monophyletic(tr_mixed_collapsed, c("C", "D"))))
+
+# MAD rejects ambiguous modes and trees without any positive distance.
+expect_error_contains(MAD(tr, output_mode="invalid"), "should be one of")
+all_zero_tree = ape::read.tree(text="((A:0,B:0):0,C:0);")
+expect_error_contains(MAD(all_zero_tree, output_mode="newick"), "no positive branch lengths")
+
+# Reconciliation requires parseable species labels rather than silently using
+# malformed gene labels as distinct species.
+tr_malformed_species = ape::read.tree(text="(A:1,B_c_gene:1);")
+expect_error_contains(get_species_overlap_score(tr_malformed_species), "Unable to parse species")
+expect_error_contains(
+    get_duplication_confidence_score(tr_malformed_species, get_root_num(tr_malformed_species)),
+    "Unable to parse species"
+)
+tr_blank_species = ape::read.tree(text="(A__gene:1,B_c_gene:1);")
+stopifnot(is.na(suppressWarnings(get_species_names(tr_blank_species))[1]))
+
+expect_error_contains(
+    count_foreground_lineage(
+        tr_fg,
+        data.frame(species=c("A", "B"), fg=c(1, 0), stringsAsFactors=FALSE)
+    ),
+    "missing rows for tree tip label"
+)
+fg_na = suppressWarnings(count_foreground_lineage(
+    tr_fg,
+    data.frame(species=c("A", "B", "C"), fg=c(1, NA, 0), stringsAsFactors=FALSE)
+))
+stopifnot(is.na(fg_na$fg))
+expect_error_contains(
+    remove_invariant_traits(data.frame(a=c("x", "y"))),
+    "numeric or logical trait columns"
+)
+expect_error_contains(
+    remove_invariant_traits(data.frame(a=c(1, Inf))),
+    "non-finite trait values"
+)
+
+# The dynamic root-score implementation agrees with the previous rerooting
+# definition over randomized trees.
+set.seed(20260809)
+for (iteration in seq_len(5L)) {
+    random_tree = ape::rtree(10)
+    random_tree$tip.label = paste0(
+        "Genus", rep(seq_len(4), length.out=10),
+        "_species", rep(seq_len(4), length.out=10),
+        "_gene", seq_len(10)
+    )
+    fast_scores = get_root_position_dependent_species_overlap_scores(random_tree)
+    slow_scores = vapply(seq_len(nrow(random_tree$edge)), function(edge_index) {
+        rerooted_tree = suppressWarnings(phytools::reroot(
+            tree=random_tree,
+            node.number=random_tree$edge[edge_index, 2],
+            position=random_tree$edge.length[edge_index] / 2
+        ))
+        get_species_overlap_score(rerooted_tree)
+    }, numeric(1))
+    stopifnot(identical(as.numeric(fast_scores), as.numeric(slow_scores)))
+}

@@ -15,8 +15,43 @@
     do.call(.get_optional_pkg_fun('Rphylopars', 'phylopars'), args=list(...))
 }
 
+.validate_numeric_trait_table = function(trait_table, context='trait_table') {
+    if (is.null(dim(trait_table)) || length(dim(trait_table)) != 2L) {
+        stop(context, ' must be a matrix or data.frame.')
+    }
+    if (ncol(trait_table) == 0L) {
+        stop(context, ' must contain at least one trait column.')
+    }
+    valid_columns = vapply(seq_len(ncol(trait_table)), function(i) {
+        values = trait_table[,i]
+        is.numeric(values) || is.integer(values) || is.logical(values)
+    }, logical(1))
+    if (any(!valid_columns)) {
+        stop(context, ' must contain only numeric or logical trait columns.')
+    }
+    finite_columns = vapply(seq_len(ncol(trait_table)), function(i) {
+        values = as.numeric(trait_table[,i])
+        all(is.finite(values[!is.na(values)]))
+    }, logical(1))
+    if (any(!finite_columns)) {
+        trait_names = colnames(trait_table)
+        if (is.null(trait_names)) {
+            trait_names = as.character(seq_len(ncol(trait_table)))
+        }
+        stop(
+            context, ' contains non-finite trait values in column(s): ',
+            paste(trait_names[!finite_columns], collapse=', ')
+        )
+    }
+    invisible(TRUE)
+}
+
 remove_invariant_traits = function(trait_table, small_dif=0.001) {
-    stopifnot(!is.null(dim(trait_table)))
+    .validate_numeric_trait_table(trait_table)
+    small_dif = suppressWarnings(as.numeric(small_dif))
+    if (length(small_dif) != 1L || is.na(small_dif) || !is.finite(small_dif) || small_dif < 0) {
+        stop('small_dif must be a single finite non-negative numeric value.')
+    }
     out_trait_table = trait_table
     num_traits = ncol(trait_table)
     trait_names = colnames(trait_table)
@@ -27,6 +62,7 @@ remove_invariant_traits = function(trait_table, small_dif=0.001) {
     is_small_dif = logical(num_traits)
     for (i in seq_len(num_traits)) {
         trait_values = trait_table[,i]
+        trait_values = as.numeric(trait_values)
         trait_values = trait_values[!is.na(trait_values)]
         if (length(trait_values) == 0) {
             is_small_dif[i] = TRUE
@@ -48,7 +84,16 @@ remove_invariant_traits = function(trait_table, small_dif=0.001) {
     return(out)
 }
 
+.replicate_base_name = function(column_name, replicate_sep) {
+    split_name = strsplit(column_name, replicate_sep, fixed=TRUE)[[1]]
+    if (length(split_name) <= 1L) {
+        return(column_name)
+    }
+    paste(split_name[-length(split_name)], collapse=replicate_sep)
+}
+
 merge_replicates = function(trait_table, replicate_sep) {
+    .validate_numeric_trait_table(trait_table)
     replicate_sep = .normalize_single_string_arg(
         value=replicate_sep,
         arg_name='replicate_sep',
@@ -57,20 +102,15 @@ merge_replicates = function(trait_table, replicate_sep) {
     if (replicate_sep=='') {
         return(trait_table)
     }
-    without_reps = c()
-    for (col in colnames(trait_table)) {
-        split = strsplit(col, replicate_sep, fixed=TRUE)[[1]]
-        num_split = length(split)
-        if (num_split == 1) {
-            without_rep = split
-        } else if (num_split > 1) {
-            without_rep = split[1:(num_split-1)]
-        }
-        if (length(without_rep)>1) {
-            cat(col, without_rep, '\n')
-        }
-        without_reps = c(without_reps, without_rep)
+    if (is.null(colnames(trait_table)) || any(is.na(colnames(trait_table)) | colnames(trait_table) == '')) {
+        stop('trait_table must have non-empty column names in merge_replicates().')
     }
+    without_reps = vapply(
+        colnames(trait_table),
+        .replicate_base_name,
+        character(1),
+        replicate_sep=replicate_sep
+    )
     if (length(unique(without_reps))==ncol(trait_table)) {
         cat(paste0('No replicate was found with --replicate_sep="', replicate_sep, '"\n'))
         return(trait_table)
@@ -82,8 +122,7 @@ merge_replicates = function(trait_table, replicate_sep) {
     colnames(out) = new_cols
     rownames(out) = rownames(trait_table)
     for (new_col in colnames(out)) {
-        is_col = (colnames(trait_table) == new_col) |
-            startsWith(colnames(trait_table), paste0(new_col, replicate_sep))
+        is_col = without_reps == new_col
         if (sum(is_col)==1) {
             values = trait_table[,is_col]
         } else {
@@ -98,6 +137,33 @@ merge_replicates = function(trait_table, replicate_sep) {
         out[,new_col] = values
     }
     return(out)
+}
+
+.trait_similarity = function(trait1, trait2, method) {
+    trait1 = suppressWarnings(as.numeric(trait1))
+    trait2 = suppressWarnings(as.numeric(trait2))
+    if (length(trait1) != length(trait2)) {
+        stop('Trait vectors must have equal length in get_high_similarity_clades().')
+    }
+    complete = stats::complete.cases(trait1, trait2) & is.finite(trait1) & is.finite(trait2)
+    if (method == 'complementarity') {
+        if (!any(complete)) {
+            return(NA_real_)
+        }
+        return(1 - calc_complementarity(
+            trait1[complete],
+            trait2[complete],
+            method='weighted'
+        ))
+    }
+    if (sum(complete) < 2L) {
+        return(NA_real_)
+    }
+    suppressWarnings(stats::cor(
+        trait1[complete],
+        trait2[complete],
+        method=method
+    ))
 }
 
 get_high_similarity_clades = function(tree, trait_table, method, threshold, verbose=FALSE, num_test=0) {
@@ -115,13 +181,16 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
         )
     }
     threshold_num = suppressWarnings(as.numeric(threshold))
-    if (length(threshold_num) != 1 || is.na(threshold_num)) {
-        stop('threshold must be a single numeric value in get_high_similarity_clades().')
+    if (length(threshold_num) != 1 || is.na(threshold_num) || !is.finite(threshold_num)) {
+        stop('threshold must be a single finite numeric value in get_high_similarity_clades().')
     }
-    num_test_num = suppressWarnings(as.integer(num_test))
-    if (length(num_test_num) != 1 || is.na(num_test_num) || num_test_num < 0) {
+    num_test_numeric = suppressWarnings(as.numeric(num_test))
+    if (length(num_test_numeric) != 1 || is.na(num_test_numeric) ||
+            !is.finite(num_test_numeric) || num_test_numeric < 0 ||
+            num_test_numeric != as.integer(num_test_numeric)) {
         stop('num_test must be a single non-negative integer in get_high_similarity_clades().')
     }
+    num_test_num = as.integer(num_test_numeric)
     verbose = .normalize_single_logical_arg(
         value=verbose,
         arg_name='verbose'
@@ -143,6 +212,7 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
             paste(missing_tip_rows, collapse=', ')
         )
     }
+    .validate_numeric_trait_table(trait_table)
     num_all_leaves = length(tree$tip.label)
     collapse_node_nums = c()
     root_num = get_root_num(tree)
@@ -158,37 +228,45 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
         current_node_num = next_node_nums[1]
         tip_labels = get_tip_labels(tree, current_node_num)
         num_leaves = length(tip_labels)
-        leaf_combinations = expand.grid(
-            c1=seq_len(num_leaves), c2=seq_len(num_leaves),
-            KEEP.OUT.ATTRS=FALSE, stringsAsFactors=FALSE
-        )
-        leaf_combinations = leaf_combinations[leaf_combinations[['c1']] < leaf_combinations[['c2']],,drop=FALSE]
-        rownames(leaf_combinations) = NULL
-        num_combinations = nrow(leaf_combinations)
+        num_combinations = choose(num_leaves, 2)
         if (verbose) {
             cat('number of next_node_nums =', length(next_node_nums), 'number of leaf combinations =', num_combinations, '\n')
         }
         min_similarity = 1
         do_collapse = TRUE
-        for (i in seq_len(num_combinations)) {
-            current_similarity = 1
-            leaf_c1 = tip_labels[leaf_combinations[i,'c1']]
-            leaf_c2 = tip_labels[leaf_combinations[i,'c2']]
-            trait_c1 = unlist(trait_table[leaf_c1,])
-            trait_c2 = unlist(trait_table[leaf_c2,])
-            if (method_name=='complementarity') {
-                current_similarity = 1 - calc_complementarity(trait_c1, trait_c2, method='weighted')
-            } else {
-                current_similarity = suppressWarnings(stats::cor(trait_c1, trait_c2, method=method_name))
-                current_similarity = ifelse(is.na(current_similarity), 1, current_similarity)
-            }
-            min_similarity = min(min_similarity, current_similarity)
-            if (min_similarity < threshold_num) {
-                do_collapse = FALSE
-                if (verbose) {
-                    cat('A low similarity (', min_similarity, ') found at', i, 'th leaf combinations (', num_combinations, ')\n')
+        combination_index = 0L
+        if (num_leaves >= 2L) {
+            for (c1 in seq_len(num_leaves - 1L)) {
+                for (c2 in seq.int(c1 + 1L, num_leaves)) {
+                    combination_index = combination_index + 1L
+                    leaf_c1 = tip_labels[[c1]]
+                    leaf_c2 = tip_labels[[c2]]
+                    current_similarity = .trait_similarity(
+                        trait1=unlist(trait_table[leaf_c1,,drop=FALSE], use.names=FALSE),
+                        trait2=unlist(trait_table[leaf_c2,,drop=FALSE], use.names=FALSE),
+                        method=method_name
+                    )
+                    if (is.na(current_similarity)) {
+                        do_collapse = FALSE
+                        min_similarity = NA_real_
+                    } else {
+                        min_similarity = min(min_similarity, current_similarity)
+                        do_collapse = min_similarity >= threshold_num
+                    }
+                    if (!do_collapse) {
+                        if (verbose) {
+                            cat(
+                                'A low or undefined similarity (', min_similarity,
+                                ') found at combination ', combination_index,
+                                ' of ', num_combinations, '\n'
+                            )
+                        }
+                        break
+                    }
                 }
-                break
+                if (!do_collapse) {
+                    break
+                }
             }
         }
         if (length(next_node_nums)==1) {
@@ -230,6 +308,7 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
     if (length(unique(non_na_values)) == 1L) {
         return(non_na_values[[1]])
     }
+    ace_error = NULL
     ace_result = tryCatch(
         suppressWarnings(
             ape::ace(
@@ -241,9 +320,16 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
                 model='BM'
             )
         ),
-        error=function(e) NULL
+        error=function(e) {
+            ace_error <<- conditionMessage(e)
+            NULL
+        }
     )
     if (is.null(ace_result) || is.null(ace_result$ace) || !length(ace_result$ace)) {
+        warning(
+            'ape::ace could not estimate a collapsed-clade root state; using the arithmetic mean. ',
+            if (is.null(ace_error)) '' else paste0('Cause: ', ace_error)
+        )
         return(mean(non_na_values))
     }
     root_num = get_root_num(subtree)
@@ -262,6 +348,7 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
 
 collapse_clades = function(tree, trait_table, collapse_node_nums) {
     cat('number of leaves before collapse =', length(tree$tip.label), '\n')
+    .validate_numeric_trait_table(trait_table)
     if (is.null(rownames(trait_table))) {
         stop('trait_table must have row names that match tree tip labels.')
     }
@@ -322,31 +409,43 @@ collapse_clades = function(tree, trait_table, collapse_node_nums) {
             collapse_node_nums = collapse_node_nums[!is_redundant_descendant]
         }
     }
-    retain_tips = list()
-    drop_tips = list()
     collapse_leaf_names = list()
+    retain_tips = character(0)
+    all_drop_tips = character(0)
+    collapsed_trait_rows = list()
     for (cnn in collapse_node_nums) {
-        collapse_leaf_names[[as.character(cnn)]] = get_tip_labels(tree, cnn)
-        retain_tips[[cnn]] = collapse_leaf_names[[as.character(cnn)]][1]
-        drop_tips[[cnn]] = collapse_leaf_names[[as.character(cnn)]][2:length(collapse_leaf_names[[as.character(cnn)]])]
+        collapse_key = as.character(cnn)
+        collapse_leaf_names[[collapse_key]] = get_tip_labels(tree, cnn)
+        retain_tip = collapse_leaf_names[[collapse_key]][[1]]
+        drop_tips = collapse_leaf_names[[collapse_key]][-1]
+        if (collapse_key %in% setdiff(tree$tip.label, collapse_leaf_names[[collapse_key]])) {
+            stop(
+                'Collapsed node label "', collapse_key,
+                '" conflicts with an existing tip label outside the clade.'
+            )
+        }
+        retain_tips[[collapse_key]] = retain_tip
+        all_drop_tips = c(all_drop_tips, drop_tips)
+        subtree = ape::extract.clade(tree, cnn)
+        subtree_traits = trait_table_aligned[subtree$tip.label,,drop=FALSE]
+        subtree_root_states = vapply(seq_len(ncol(trait_table_aligned)), function(i) {
+            .collapse_clade_root_state(subtree_traits[,i], subtree)
+        }, numeric(1))
+        subtree_root_row = as.data.frame(t(subtree_root_states), stringsAsFactors=FALSE)
+        colnames(subtree_root_row) = colnames(trait_table_aligned)
+        rownames(subtree_root_row) = collapse_key
+        collapsed_trait_rows[[collapse_key]] = subtree_root_row
     }
     out_tree = tree
     out_trait = trait_table_aligned
-    for (cnn in collapse_node_nums) {
-        out_tree = ape::drop.tip(out_tree, tip=drop_tips[[cnn]], trim.internal=TRUE)
-        out_tree$tip.label[out_tree$tip.label==retain_tips[[cnn]]] = cnn
-        subtree = ape::extract.clade(tree, cnn)
-        subtree_traits = trait_table_aligned[subtree$tip.label,,drop=FALSE]
-        subtree_root_states = c()
-        for (i in seq_len(ncol(trait_table_aligned))) {
-            subtree_root_state = .collapse_clade_root_state(subtree_traits[,i], subtree)
-            subtree_root_states = c(subtree_root_states, subtree_root_state)
+    if (length(collapse_node_nums)) {
+        out_tree = ape::drop.tip(out_tree, tip=all_drop_tips, trim.internal=TRUE)
+        for (collapse_key in names(retain_tips)) {
+            out_tree$tip.label[out_tree$tip.label == retain_tips[[collapse_key]]] = collapse_key
         }
-        out_trait = out_trait[!(rownames(out_trait) %in% subtree$tip.label),,drop=FALSE]
-        subtree_root_row = as.data.frame(t(subtree_root_states), stringsAsFactors=FALSE)
-        colnames(subtree_root_row) = colnames(out_trait)
-        out_trait = rbind(out_trait, subtree_root_row)
-        rownames(out_trait)[nrow(out_trait)] = cnn
+        collapsed_leaves = unique(unlist(collapse_leaf_names, use.names=FALSE))
+        out_trait = out_trait[!(rownames(out_trait) %in% collapsed_leaves),,drop=FALSE]
+        out_trait = rbind(out_trait, do.call(rbind, collapsed_trait_rows))
     }
     out_trait = out_trait[out_tree$tip.label,,drop=FALSE]
     cat('number of leaves after collapse =', length(out_tree$tip.label), '\n')
@@ -356,7 +455,9 @@ collapse_clades = function(tree, trait_table, collapse_node_nums) {
 
 map_node_num = function(tree_original, tree_collapsed, collapse_leaf_names=list(), verbose=FALSE) {
     # tree_collapsed should be a collapsed tree
-    stopifnot(length(tree_original$tip.label)>=length(tree_collapsed$tip.label))
+    if (length(tree_original$tip.label) < length(tree_collapsed$tip.label)) {
+        stop('tree_original must have at least as many tips as tree_collapsed.')
+    }
     if (is.null(collapse_leaf_names)) {
         collapse_leaf_names = list()
     }
@@ -403,80 +504,66 @@ map_node_num = function(tree_original, tree_collapsed, collapse_leaf_names=list(
             '.'
         )
     }
-    df = data.frame(matrix(NA, max(tree_original$edge[,1]), 2))
-    colnames(df) = c('tree_original', 'tree_collapsed')
-    tree_original_node_nums = 1:max(tree_original$edge[,1])
-    tree_collapsed_node_nums = 1:max(tree_collapsed$edge[,1])
-    while (length(tree_original_node_nums)>0) {
-        nn1 = tree_original_node_nums[1]
-        nn1_leaf_names = sort(get_tip_labels(tree_original, nn1))
-        matched = FALSE
-        for (i in seq_along(tree_collapsed_node_nums)) {
-            nn2 = tree_collapsed_node_nums[i]
-            nn2_leaf_names = sort(get_tip_labels(tree_collapsed, nn2))
-            collapsed_node_nums = nn2_leaf_names[as.character(nn2_leaf_names) %in% names(collapse_leaf_names)]
-            any_collapse = (length(collapsed_node_nums)>0)
-            is_collapse_nn2 = (length(nn2_leaf_names)==1)&(any_collapse)
-            if (any_collapse) {
-                nn2_leaf_names = nn2_leaf_names[!nn2_leaf_names %in% collapsed_node_nums]
-                for (cnn in collapsed_node_nums) {
-                    nn2_leaf_names = c(nn2_leaf_names, collapse_leaf_names[[as.character(cnn)]])
-                }
-                nn2_leaf_names = sort(nn2_leaf_names)
-            }
-            if (is_collapse_nn2) {
-                flag = all(nn1_leaf_names %in% nn2_leaf_names)
-            } else if (length(nn1_leaf_names)==length(nn2_leaf_names)) {
-                flag = identical(nn1_leaf_names, nn2_leaf_names)
-            } else {
-                flag = FALSE
-            }
-            if (verbose) {
-                noncollapse_match = identical(nn1_leaf_names, nn2_leaf_names)
-                cat('nn1:', nn1, 'nn2:', nn2,
-                    'collapse match:', all(nn1_leaf_names %in% nn2_leaf_names),
-                    'noncollapse match:', noncollapse_match,
-                    'is_collapse_nn2:', is_collapse_nn2, '\n')
-            }
-            if (flag) {
-                matched = TRUE
-                df[nn1,] = c(nn1,nn2)
-                tree_original_node_nums = tree_original_node_nums[-1]
-                if (!is_collapse_nn2) {
-                    tree_collapsed_node_nums = tree_collapsed_node_nums[-i]
-                    tree_collapsed_node_nums = tree_collapsed_node_nums[tree_collapsed_node_nums!=nn2]
-                }
-                break
-            }
+    original_node_nums = seq_len(max(tree_original[['edge']]))
+    collapsed_node_nums = seq_len(max(tree_collapsed[['edge']]))
+    original_tip_sets = .get_node_tip_sets(tree_original)
+    original_signatures = vapply(
+        original_tip_sets, .encode_tip_signature, character(1)
+    )
+    collapsed_tip_sets = .get_node_tip_sets(tree_collapsed)
+    mapped_collapsed_num = rep(NA_integer_, length(original_node_nums))
+
+    for (nn2 in collapsed_node_nums) {
+        collapsed_tips = as.character(collapsed_tip_sets[[nn2]])
+        collapsed_placeholders = intersect(collapsed_tips, names(collapse_leaf_names))
+        expanded_tips = setdiff(collapsed_tips, collapsed_placeholders)
+        for (placeholder in collapsed_placeholders) {
+            expanded_tips = c(expanded_tips, as.character(collapse_leaf_names[[placeholder]]))
         }
-        if (!matched) {
+        expanded_tips = sort(unique(expanded_tips))
+        is_collapsed_tip = length(collapsed_tips) == 1L &&
+            collapsed_tips[[1]] %in% names(collapse_leaf_names)
+
+        if (is_collapsed_tip) {
+            matched_original = vapply(original_tip_sets, function(tips) {
+                length(tips) > 0L && all(tips %in% expanded_tips)
+            }, logical(1))
+        } else {
+            expanded_signature = .encode_tip_signature(expanded_tips)
+            matched_original = original_signatures == expanded_signature
+        }
+        conflicts = matched_original & !is.na(mapped_collapsed_num) & mapped_collapsed_num != nn2
+        if (any(conflicts)) {
             stop(
-                'Cannot map node number in map_node_num(). First unmatched original node: ',
-                nn1,
-                '. Remaining original nodes: ',
-                paste(tree_original_node_nums, collapse=', '),
-                '. Remaining collapsed nodes: ',
-                paste(tree_collapsed_node_nums, collapse=', '),
-                '.'
+                'Ambiguous node mapping in map_node_num() for original node(s): ',
+                paste(original_node_nums[conflicts], collapse=', ')
             )
         }
+        mapped_collapsed_num[matched_original] = nn2
     }
-    num_match_before = nrow(df)
-    df = df[(!is.na(df[['tree_original']])),]
-    df = df[(!is.na(df[['tree_collapsed']])),]
-    num_match_after = nrow(df)
-    if (num_match_before!=num_match_after) {
-        num_na = num_match_before-num_match_after
-        cat('Warning:', num_na, 'NA are produced in map_node_num().\n')
+
+    if (anyNA(mapped_collapsed_num)) {
+        stop(
+            'Cannot map original node number(s) in map_node_num(): ',
+            paste(original_node_nums[is.na(mapped_collapsed_num)], collapse=', ')
+        )
     }
-    return(df)
+    if (verbose) {
+        cat('Mapped', length(original_node_nums), 'original nodes to',
+            length(unique(mapped_collapsed_num)), 'collapsed nodes.\n')
+    }
+    data.frame(
+        tree_original=original_node_nums,
+        tree_collapsed=mapped_collapsed_num,
+        stringsAsFactors=FALSE
+    )
 }
 
 get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
-    mode = .normalize_single_string_arg(
+    mode = .normalize_choice_arg(
         value=mode,
         arg_name='mode',
-        allow_empty=FALSE
+        choices=c('l1ou', 'PhylogeneticEM')
     )
     species_parser = .normalize_species_parser_arg(
         value=species_parser,
@@ -569,7 +656,11 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
 }
 
 .as_l1ou_param_vector = function(values, param_name, expected_cols) {
+    original_names = names(values)
     vec = as.vector(values)
+    if (!is.null(original_names) && length(original_names) == length(vec)) {
+        names(vec) = original_names
+    }
     if (expected_cols == 0L) {
         return(numeric(0))
     }
@@ -577,7 +668,7 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
         return(vec)
     }
     if (length(vec) == 1L) {
-        return(rep(vec, expected_cols))
+        return(unname(rep(vec, expected_cols)))
     }
     stop(
         'pcm_out$',
@@ -673,10 +764,10 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
 }
 
 get_regime_table = function(pcm_out, mode) {
-    mode = .normalize_single_string_arg(
+    mode = .normalize_choice_arg(
         value=mode,
         arg_name='mode',
-        allow_empty=FALSE
+        choices=c('l1ou', 'PhylogeneticEM')
     )
     regime_table = data.frame()
     if (mode=='l1ou') {
@@ -745,11 +836,31 @@ get_regime_table = function(pcm_out, mode) {
                 expected_rows=expected_shift_count,
                 expected_cols=ncol(pcm_out$Y)
             )
-            tmp_table = cbind(regimes, node_names, "shift_value", shift_values)
+            shift_values = .align_l1ou_trait_columns(
+                shift_values, 'shift.values', cols
+            )
+            shift_means = .align_l1ou_trait_columns(
+                shift_means, 'shift.means', cols
+            )
+            tmp_table = data.frame(
+                regime=regimes,
+                node_name=node_names,
+                param='shift_value',
+                shift_values,
+                stringsAsFactors=FALSE,
+                check.names=FALSE
+            )
             colnames(tmp_table) = column_names
             regime_table = rbind(regime_table, tmp_table)
 
-            tmp_table = cbind(regimes, node_names, "shift_mean", shift_means)
+            tmp_table = data.frame(
+                regime=regimes,
+                node_name=node_names,
+                param='shift_mean',
+                shift_means,
+                stringsAsFactors=FALSE,
+                check.names=FALSE
+            )
             colnames(tmp_table) = column_names
             regime_table = rbind(regime_table, tmp_table)
         }
@@ -766,7 +877,29 @@ get_regime_table = function(pcm_out, mode) {
                 param_name=param_name,
                 expected_cols=ncol(pcm_out$Y)
             )
-            tmp_table = cbind(NA, NA, param_name, matrix(values, 1, ncol(pcm_out$Y)))
+            value_names = names(values)
+            if (!is.null(value_names)) {
+                if (anyDuplicated(value_names) || !setequal(value_names, cols)) {
+                    stop(
+                        'Names of pcm_out$', param_name,
+                        ' must match pcm_out$Y columns.'
+                    )
+                }
+                values = values[cols]
+            }
+            value_table = as.data.frame(
+                matrix(as.numeric(values), 1, ncol(pcm_out$Y)),
+                stringsAsFactors=FALSE
+            )
+            colnames(value_table) = cols
+            tmp_table = data.frame(
+                regime=NA_character_,
+                node_name=NA_character_,
+                param=param_name,
+                value_table,
+                stringsAsFactors=FALSE,
+                check.names=FALSE
+            )
             colnames(tmp_table) = column_names
             regime_table = rbind(regime_table, tmp_table)
         }
@@ -834,10 +967,10 @@ get_regime_table = function(pcm_out, mode) {
 }
 
 get_leaf_regimes = function(pcm_out, mode) {
-    mode = .normalize_single_string_arg(
+    mode = .normalize_choice_arg(
         value=mode,
         arg_name='mode',
-        allow_empty=FALSE
+        choices=c('l1ou', 'PhylogeneticEM')
     )
     if (mode=='l1ou') {
         tree = pcm_out[['tree']]
@@ -882,10 +1015,10 @@ get_leaf_regimes = function(pcm_out, mode) {
 }
 
 get_leaf_table = function(pcm_out, mode) {
-    mode = .normalize_single_string_arg(
+    mode = .normalize_choice_arg(
         value=mode,
         arg_name='mode',
-        allow_empty=FALSE
+        choices=c('l1ou', 'PhylogeneticEM')
     )
     leaf_table = data.frame()
     if (mode=='l1ou') {
@@ -976,10 +1109,10 @@ get_leaf_table = function(pcm_out, mode) {
 }
 
 get_bootstrap_table = function(pcm_out, bootstrap_result, mode='l1ou') {
-    mode = .normalize_single_string_arg(
+    mode = .normalize_choice_arg(
         value=mode,
         arg_name='mode',
-        allow_empty=FALSE
+        choices='l1ou'
     )
     if (mode=='l1ou') {
         tree = fill_node_labels(pcm_out$tree)
@@ -1034,8 +1167,10 @@ tree_table_collapse2original = function(tree_table, tree_original, species_parse
         species_parser=species_parser,
         sep=sep
     ))
-    if (length(species_names) != num_leaf || !length(species_names) || all(is.na(species_names))) {
+    if (length(species_names) != num_leaf || !length(species_names)) {
         species_names = tree_original$tip.label
+    } else if (anyNA(species_names)) {
+        species_names[is.na(species_names)] = tree_original$tip.label[is.na(species_names)]
     }
     num_species = length(unique(stats::na.omit(species_names)))
     if (num_species == 0L) {
@@ -1137,20 +1272,32 @@ restore_imputed_leaves = function(leaf_table, original_trait_table) {
     } else {
         stop('leaf_table must contain either "node_name" or "label" column.')
     }
+    missing_trait_cols = setdiff(traits, colnames(out_leaf_table))
+    if (length(missing_trait_cols)) {
+        stop(
+            'leaf_table is missing trait column(s): ',
+            paste(missing_trait_cols, collapse=', ')
+        )
+    }
     leaf_names = as.character(out_leaf_table[[leaf_col]])
-    for (leaf_name in leaf_names) {
-        if (leaf_name %in% rownames(original_trait_table)) {
-            conditions = ((as.character(out_leaf_table[[leaf_col]]) == leaf_name) &
-                (out_leaf_table$param == 'imputed'))
-            conditions[is.na(conditions)] = FALSE
-            out_leaf_table[conditions, traits] = original_trait_table[leaf_name, traits]
-        }
+    conditions = !is.na(leaf_names) & leaf_names %in% rownames(original_trait_table) &
+        !is.na(out_leaf_table$param) & out_leaf_table$param == 'imputed'
+    target_rows = which(conditions)
+    if (length(target_rows)) {
+        out_leaf_table[target_rows, traits] = original_trait_table[
+            leaf_names[target_rows], traits, drop=FALSE
+        ]
     }
     return(out_leaf_table)
 }
 
 get_placeholder_leaf = function(tree, original_trait_table) {
-    stopifnot(!missing(tree))
+    if (missing(tree) || !inherits(tree, 'phylo')) {
+        stop('tree must be an object of class "phylo" in get_placeholder_leaf().')
+    }
+    if (is.null(rownames(original_trait_table))) {
+        stop('original_trait_table must have row names in get_placeholder_leaf().')
+    }
     out = data.frame()
     params = c('Y', 'optima', 'mu', 'residuals')
     for (param in params) {
@@ -1167,7 +1314,9 @@ get_placeholder_leaf = function(tree, original_trait_table) {
 }
 
 get_placeholder_regime = function(tree, original_trait_table) {
-    stopifnot(!missing(tree))
+    if (missing(tree) || !inherits(tree, 'phylo')) {
+        stop('tree must be an object of class "phylo" in get_placeholder_regime().')
+    }
     out = data.frame()
     params = c('alpha', 'sigma2', 'intercept', 'log_likelihood')
     trait_cols = colnames(original_trait_table)
@@ -1183,13 +1332,22 @@ get_placeholder_regime = function(tree, original_trait_table) {
 }
 
 get_placeholder_tree = function(tree, original_trait_table) {
-    stopifnot(!missing(tree))
-    stopifnot(!missing(original_trait_table))
-    out = data.frame()
-    params = c('num_shift','num_regime','num_conv_regime','num_uniq_regime','num_species','num_leaf','model_score')
-    out = rbind(out, rep(0, length(params)))
-    colnames(out) = params
-    return(out)
+    if (missing(tree) || !inherits(tree, 'phylo')) {
+        stop('tree must be an object of class "phylo" in get_placeholder_tree().')
+    }
+    if (missing(original_trait_table)) {
+        stop('original_trait_table is required in get_placeholder_tree().')
+    }
+    data.frame(
+        num_shift=0L,
+        num_regime=1L,
+        num_conv_regime=0L,
+        num_uniq_regime=1L,
+        num_species=length(unique(tree[['tip.label']])),
+        num_leaf=length(tree[['tip.label']]),
+        model_score=NA_real_,
+        stringsAsFactors=FALSE
+    )
 }
 
 sort_exp = function(exp, tree, col='gene_id') {
@@ -1223,10 +1381,14 @@ sort_exp = function(exp, tree, col='gene_id') {
 }
 
 phylogenetic_imputation = function(tree, trait_table) {
+    .validate_numeric_trait_table(trait_table)
+    if (is.null(rownames(trait_table)) || any(is.na(rownames(trait_table)) | rownames(trait_table) == '')) {
+        stop('trait_table must have non-empty row names matching tree tip labels.')
+    }
     trait_table2 = cbind(species=rownames(trait_table), trait_table)
     trait_table2 = sort_exp(trait_table2, tree, col='species')
-    num_missing = sum(is.na(trait_table2))
-    num_all = nrow(trait_table2) * ncol(trait_table2)
+    num_missing = sum(is.na(trait_table2[setdiff(colnames(trait_table2), 'species')]))
+    num_all = nrow(trait_table2) * (ncol(trait_table2) - 1L)
     cat('Phylogenetic imputation with phylopars:', num_missing, '/', num_all, 'traits will be imputed.\n')
     rp_out = .rphylopars_phylopars(tree=tree, trait_data=trait_table2, phylo_correlated=TRUE, pheno_correlated=TRUE)
     imputed_matrix = data.frame(rp_out[['anc_recon']])
@@ -1245,17 +1407,15 @@ get_expression_bases = function(trait_table, replicate_sep) {
         out = out[out!='gene']
         return(out)
     }
-    without_reps = c()
-    for (col in colnames(trait_table)) {
-        split = strsplit(col, replicate_sep, fixed=TRUE)[[1]]
-        num_split = length(split)
-        if (num_split == 1) {
-            without_rep = split
-        } else if (num_split > 1) {
-            without_rep = split[1:(num_split-1)]
-        }
-        without_reps = c(without_reps, without_rep)
+    if (is.null(colnames(trait_table)) || any(is.na(colnames(trait_table)) | colnames(trait_table) == '')) {
+        stop('trait_table must have non-empty column names in get_expression_bases().')
     }
+    without_reps = vapply(
+        colnames(trait_table),
+        .replicate_base_name,
+        character(1),
+        replicate_sep=replicate_sep
+    )
     out = unique(without_reps)
     out = out[out!='gene']
     return(out)
@@ -1263,6 +1423,12 @@ get_expression_bases = function(trait_table, replicate_sep) {
 
 count_foreground_lineage = function(tree, trait) {
     num_fg_lineage = list()
+    if (!inherits(tree, 'phylo') || is.null(tree[['edge']]) || !nrow(tree[['edge']])) {
+        stop('tree must be a non-empty object of class "phylo".')
+    }
+    if (anyDuplicated(tree[['tip.label']])) {
+        stop('tree must have unique tip labels in count_foreground_lineage().')
+    }
     if (!("species" %in% colnames(trait))) {
         stop('trait must contain a "species" column.')
     }
@@ -1271,12 +1437,54 @@ count_foreground_lineage = function(tree, trait) {
         stop('trait must contain at least one foreground trait column.')
     }
     species_names = as.character(trait[['species']])
+    if (any(is.na(species_names) | trimws(species_names) == '')) {
+        stop('trait$species must contain only non-missing, non-empty names.')
+    }
+    if (anyDuplicated(species_names)) {
+        stop(
+            'trait$species contains duplicated names: ',
+            paste(unique(species_names[duplicated(species_names)]), collapse=', ')
+        )
+    }
     unknown_species = setdiff(stats::na.omit(species_names), tree[['tip.label']])
     if (length(unknown_species)) {
         stop(
             'trait$species contains names not present in tree tip labels: ',
             paste(unique(unknown_species), collapse=', ')
         )
+    }
+    missing_species = setdiff(tree[['tip.label']], species_names)
+    if (length(missing_species)) {
+        stop(
+            'trait is missing rows for tree tip label(s): ',
+            paste(missing_species, collapse=', ')
+        )
+    }
+    node_nums = seq_len(max(tree[['edge']]))
+    num_tip = length(tree[['tip.label']])
+    children_by_parent = split(tree[['edge']][,2], tree[['edge']][,1])
+    parent_by_child = stats::setNames(tree[['edge']][,1], tree[['edge']][,2])
+    root_num = get_root_num(tree)
+    if (length(root_num) != 1L) {
+        stop('tree must have exactly one root in count_foreground_lineage().')
+    }
+    traversal_order = integer(length(node_nums))
+    traversal_order[[1]] = root_num
+    queue_size = 1L
+    next_index = 1L
+    while (next_index <= queue_size) {
+        children = children_by_parent[[as.character(traversal_order[[next_index]])]]
+        if (length(children)) {
+            target_indices = queue_size + seq_along(children)
+            traversal_order[target_indices] = children
+            queue_size = queue_size + length(children)
+        }
+        next_index = next_index + 1L
+    }
+    traversal_order = traversal_order[seq_len(queue_size)]
+    if (queue_size != length(node_nums) || anyDuplicated(traversal_order) ||
+            !setequal(traversal_order, node_nums)) {
+        stop('tree has an invalid or disconnected topology in count_foreground_lineage().')
     }
     for (trait_col in trait_cols) {
         trait_values = trait[[trait_col]]
@@ -1294,40 +1502,34 @@ count_foreground_lineage = function(tree, trait) {
             num_fg_lineage[[trait_col]] = NA
             next
         }
-        fg_spp = species_names[(!is.na(trait_values)) & (trait_values == 1)]
-        fg_tip_nums = get_node_num_by_name(phy=tree, node_name=fg_spp)
-        node_nums = 1:max(tree[['edge']])
-        is_fg_only_clade = rep(NA, length(node_nums))
-        for (node_num in node_nums) {
-            if (node_num <= length(tree[['tip.label']])) {
-                clade_leaf_nums = node_num
-            } else {
-                clade_leaf_nums = get_descendent_num(phy=tree, node_num=node_num, leaf_only=TRUE)
-            }
-            is_all_leaf_fg = all(clade_leaf_nums %in% fg_tip_nums)
-            is_fg_only_clade[node_num] = is_all_leaf_fg
+        if (anyNA(trait_values)) {
+            warning(
+                trait_col,
+                ': missing foreground states make the lineage count undefined. Returning NA.'
+            )
+            num_fg_lineage[[trait_col]] = NA
+            next
         }
-        stopifnot(!any(is.na(is_fg_only_clade)))
-        is_fg_stem = rep(NA, length(node_nums))
-        for (node_num in node_nums) {
-            is_node_fg = is_fg_only_clade[node_num]
-            if (is_root(phy=tree, node_num=node_num)) {
-                if (is_node_fg) {
-                    is_fg_stem[node_num] = TRUE
-                } else {
-                    is_fg_stem[node_num] = FALSE
-                }
+        fg_spp = species_names[(!is.na(trait_values)) & (trait_values == 1)]
+        is_fg_only_clade = logical(length(node_nums))
+        is_fg_only_clade[seq_len(num_tip)] = tree[['tip.label']] %in% fg_spp
+        for (node_num in rev(traversal_order)) {
+            if (node_num <= num_tip) {
                 next
             }
-            parent_node_num = get_parent_num(phy=tree, node_num=node_num)
-            is_parent_bg = !is_fg_only_clade[parent_node_num]
-            if (is_node_fg & is_parent_bg) {
-                is_fg_stem[node_num] = TRUE
-            } else {
-                is_fg_stem[node_num] = FALSE
-            }
+            children = children_by_parent[[as.character(node_num)]]
+            is_fg_only_clade[[node_num]] = length(children) > 0L &&
+                all(is_fg_only_clade[children])
         }
-        stopifnot(!any(is.na(is_fg_stem)))
+        is_fg_stem = logical(length(node_nums))
+        is_fg_stem[[root_num]] = is_fg_only_clade[[root_num]]
+        nonroot_nodes = setdiff(node_nums, root_num)
+        nonroot_parents = unname(parent_by_child[as.character(nonroot_nodes)])
+        if (anyNA(nonroot_parents)) {
+            stop('Invalid tree topology in count_foreground_lineage().')
+        }
+        is_fg_stem[nonroot_nodes] = is_fg_only_clade[nonroot_nodes] &
+            !is_fg_only_clade[nonroot_parents]
         num_fg_lineage[[trait_col]] = sum(is_fg_stem)
     }
     return(num_fg_lineage)

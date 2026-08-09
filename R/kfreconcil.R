@@ -18,14 +18,21 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
         child_leaves = vector(mode='list', length(children_num))
         for (j in seq_along(children_num)) {
             child_leaves[[j]] = get_tip_labels(phy, children_num[j])
-            child_leaves[[j]] = .parse_species_labels(
+            parsed_species = .parse_species_labels(
                 labels=child_leaves[[j]],
                 species_parser=species_parser,
                 sep=sep,
                 output_sep=' ',
                 require_gene=FALSE,
-                fallback_label=TRUE
-            )[['species_labels']]
+                fallback_label=FALSE
+            )
+            if (any(!parsed_species[['parsed_ok']])) {
+                stop(
+                    'Unable to parse species from tip label(s): ',
+                    paste(child_leaves[[j]][!parsed_species[['parsed_ok']]], collapse=', ')
+                )
+            }
+            child_leaves[[j]] = parsed_species[['species_labels']]
         }
         sp_intersect = intersect(child_leaves[[1]], child_leaves[[2]])
         sp_union = union(child_leaves[[1]], child_leaves[[2]])
@@ -34,19 +41,6 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
         dc_score = NA
     }
     return(dc_score)
-}
-
-.species_overlap_score_core = function(phy, dc_cutoff=0, dc_score_fun) {
-    tip_count = length(phy[['tip.label']])
-    max_node_num = max(phy[['edge']])
-    if (max_node_num <= tip_count) {
-        return(0)
-    }
-    internal_nodes = seq.int(tip_count + 1, max_node_num)
-    dc_scores = vapply(internal_nodes, function(int_node) {
-        dc_score_fun(phy, int_node)
-    }, numeric(1))
-    sum(dc_scores > dc_cutoff)
 }
 
 # Assigns compact internal species_id values for species-overlap algorithms.
@@ -61,14 +55,22 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
         arg_name='sep',
         allow_empty=FALSE
     )
-    species_labels = .parse_species_labels(
+    parsed_species = .parse_species_labels(
         labels=tip_labels,
         species_parser=species_parser,
         sep=sep,
         output_sep=sep,
         require_gene=FALSE,
-        fallback_label=TRUE
-    )[['species_labels']]
+        fallback_label=FALSE
+    )
+    if (any(!parsed_species[['parsed_ok']])) {
+        stop(
+            'Unable to parse species from tip label(s): ',
+            paste(tip_labels[!parsed_species[['parsed_ok']]], collapse=', '),
+            '. Use labels compatible with species_parser or choose the correct sep.'
+        )
+    }
+    species_labels = parsed_species[['species_labels']]
     species_levels = unique(species_labels)
     species_ids = match(species_labels, species_levels)
     names(species_ids) = tip_labels
@@ -190,15 +192,146 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
     )
 }
 
+.directed_species_overlap_scores = function(phy, species_ids, dc_cutoff=0) {
+    root_num = get_root_num(phy)
+    root_children = get_children_num(phy, root_num)
+    if (length(root_num) != 1L || length(root_children) != 2L) {
+        stop('Root-position scoring requires a rooted binary tree with two root children.')
+    }
+
+    original_edges = phy[['edge']]
+    nonroot_edges = original_edges[original_edges[,1] != root_num,,drop=FALSE]
+    unrooted_edges = rbind(nonroot_edges, root_children)
+    adjacency = split(
+        c(unrooted_edges[,2], unrooted_edges[,1]),
+        c(unrooted_edges[,1], unrooted_edges[,2])
+    )
+    nodes = sort(unique(as.integer(c(unrooted_edges))))
+    if (nrow(unrooted_edges) != length(nodes) - 1L) {
+        stop('Invalid cyclic topology in root-position scoring.')
+    }
+    traversal_root = nodes[[1]]
+    parent_by_node = rep(NA_integer_, max(nodes))
+    traversal_order = integer(length(nodes))
+    traversal_order[[1]] = traversal_root
+    visited = logical(max(nodes))
+    visited[[traversal_root]] = TRUE
+    queue_size = 1L
+    next_index = 1L
+    while (next_index <= queue_size) {
+        node = traversal_order[[next_index]]
+        next_nodes = setdiff(
+            adjacency[[as.character(node)]],
+            parent_by_node[[node]]
+        )
+        next_nodes = next_nodes[!visited[next_nodes]]
+        if (length(next_nodes)) {
+            parent_by_node[next_nodes] = node
+            visited[next_nodes] = TRUE
+            target_indices = queue_size + seq_along(next_nodes)
+            traversal_order[target_indices] = next_nodes
+            queue_size = queue_size + length(next_nodes)
+        }
+        next_index = next_index + 1L
+    }
+    traversal_order = traversal_order[seq_len(queue_size)]
+    if (queue_size != length(nodes) || !setequal(traversal_order, nodes)) {
+        stop('Invalid disconnected topology in root-position scoring.')
+    }
+
+    component_species = new.env(parent=emptyenv(), hash=TRUE)
+    component_scores = new.env(parent=emptyenv(), hash=TRUE)
+
+    overlap_indicator = function(species1, species2) {
+        if (!length(species1) && !length(species2)) {
+            return(0L)
+        }
+        intersect_count = if (length(species1) <= length(species2)) {
+            sum(species1 %in% species2)
+        } else {
+            sum(species2 %in% species1)
+        }
+        union_count = length(species1) + length(species2) - intersect_count
+        if (union_count == 0L) {
+            return(0L)
+        }
+        as.integer((intersect_count / union_count) > dc_cutoff)
+    }
+
+    build_message = function(from, to) {
+        key = paste0(from, '>', to)
+        next_nodes = setdiff(adjacency[[as.character(to)]], from)
+        next_keys = paste0(to, '>', next_nodes)
+        if (to <= length(species_ids)) {
+            species = species_ids[[to]]
+            score = 0
+        } else {
+            if (any(!vapply(next_keys, exists, logical(1),
+                    envir=component_species, inherits=FALSE))) {
+                stop('Invalid traversal state in root-position scoring.')
+            }
+            next_species = mget(
+                next_keys, envir=component_species, inherits=FALSE
+            )
+            species = unique(unlist(next_species, use.names=FALSE))
+            local_score = if (length(next_nodes) == 2L) {
+                overlap_indicator(
+                    next_species[[1]],
+                    next_species[[2]]
+                )
+            } else {
+                0L
+            }
+            score = as.numeric(local_score + sum(unlist(mget(
+                next_keys, envir=component_scores, inherits=FALSE
+            ), use.names=FALSE)))
+        }
+        assign(key, species, envir=component_species)
+        assign(key, score, envir=component_scores)
+        invisible(NULL)
+    }
+
+    # First calculate messages towards the traversal root, then propagate the
+    # complementary messages away from it. Each directed edge is visited once.
+    for (to in rev(traversal_order[-1L])) {
+        build_message(parent_by_node[[to]], to)
+    }
+    for (from in traversal_order) {
+        children = adjacency[[as.character(from)]]
+        children = children[parent_by_node[children] == from]
+        for (to in children) {
+            build_message(to, from)
+        }
+    }
+
+    score_unrooted_edge = function(node1, node2) {
+        key12 = paste0(node1, '>', node2)
+        key21 = paste0(node2, '>', node1)
+        get(key12, envir=component_scores, inherits=FALSE) +
+            get(key21, envir=component_scores, inherits=FALSE) +
+            overlap_indicator(
+                get(key12, envir=component_species, inherits=FALSE),
+                get(key21, envir=component_species, inherits=FALSE)
+            )
+    }
+
+    vapply(seq_len(nrow(original_edges)), function(edge_index) {
+        parent = original_edges[edge_index,1]
+        child = original_edges[edge_index,2]
+        if (parent == root_num) {
+            score_unrooted_edge(root_children[[1]], root_children[[2]])
+        } else {
+            score_unrooted_edge(parent, child)
+        }
+    }, numeric(1))
+}
+
 get_root_position_dependent_species_overlap_scores = function(
     phy,
-    nslots,
+    nslots=NULL,
     species_parser='legacy',
     sep='_'
 ) {
-    if (!requireNamespace('phytools', quietly=TRUE)) {
-        stop("'phytools' package not found, please install it.")
-    }
     species_parser = .normalize_species_parser_arg(
         value=species_parser,
         arg_name='species_parser'
@@ -209,82 +342,58 @@ get_root_position_dependent_species_overlap_scores = function(
         allow_empty=FALSE
     )
 
+    if (!inherits(phy, 'phylo') || !ape::is.rooted(phy) || !ape::is.binary(phy)) {
+        stop('phy must be a rooted binary object of class "phylo".')
+    }
     num_edges = nrow(phy[['edge']])
     if (num_edges == 0) {
         return(numeric(0))
     }
-    edge_indices = seq_len(num_edges)
-    num_parallel = .resolve_parallel_cores(
-        requested=nslots,
-        max_tasks=num_edges,
-        auto_when_missing=FALSE
-    )
-    species_id_by_label = .tip_species_id_map(
+    if (!is.null(nslots)) {
+        .resolve_parallel_cores(
+            requested=nslots,
+            max_tasks=num_edges,
+            auto_when_missing=FALSE
+        )
+    }
+    species_ids = unname(.tip_species_id_map(
         tip_labels=phy[['tip.label']],
         species_parser=species_parser,
         sep=sep
+    ))
+    .directed_species_overlap_scores(
+        phy=phy,
+        species_ids=species_ids,
+        dc_cutoff=0
     )
-
-    score_edge = function(i, phy_obj, dc_cutoff=0) {
-        rt = phytools::reroot(tree=phy_obj, node.number=phy_obj[['edge']][i,2])
-        .species_overlap_score_fast_impl(
-            phy=rt,
-            dc_cutoff=dc_cutoff,
-            species_id_by_label=species_id_by_label,
-            species_parser=species_parser,
-            sep=sep
-        )
-    }
-
-    if (num_parallel == 1) {
-        species_overlap_scores = vapply(edge_indices, function(i) {
-            score_edge(i=i, phy_obj=phy, dc_cutoff=0)
-        }, numeric(1))
-        return(species_overlap_scores)
-    }
-
-    if (.Platform$OS.type != "windows") {
-        species_overlap_scores = unlist(parallel::mclapply(
-            X=edge_indices, FUN=score_edge,
-            phy_obj=phy, dc_cutoff=0,
-            mc.cores=num_parallel
-        ), use.names=FALSE)
-        return(species_overlap_scores)
-    }
-
-    cluster = parallel::makeCluster(num_parallel, 'PSOCK', outfile='')
-    on.exit(parallel::stopCluster(cluster), add=TRUE)
-    species_overlap_scores = unlist(parallel::parLapply(
-        cl=cluster, X=edge_indices, fun=score_edge,
-        phy_obj=phy, dc_cutoff=0
-    ), use.names=FALSE)
-    return(species_overlap_scores)
 }
 
 read_notung_parsable = function(file, mode='D') {
-    mode = .normalize_single_string_arg(
+    mode = .normalize_choice_arg(
         value=mode,
         arg_name='mode',
-        allow_empty=FALSE
+        choices='D'
     )
     cols = c('event', 'gn_node', 'lower_sp_node', 'upper_sp_node')
     empty_df = data.frame(matrix(NA_character_, 0, length(cols)), stringsAsFactors=FALSE)
     colnames(empty_df) = cols
 
-    if (mode!='D') {
-        cat('mode', mode, 'is not supported.')
-        return(empty_df)
-    }
-
     con = base::file(file, "r")
     on.exit(close(con), add=TRUE)
-    event_lines = readLines(con=con, warn=FALSE)
-    dup_positions = grep("^\\s*#D\\b", event_lines)
-    if (length(dup_positions)==0) {
+    dup_lines = character(0)
+    repeat {
+        chunk = readLines(con=con, n=10000L, warn=FALSE)
+        if (!length(chunk)) {
+            break
+        }
+        matched_lines = grep("^\\s*#D\\b", chunk, value=TRUE)
+        if (length(matched_lines)) {
+            dup_lines = c(dup_lines, matched_lines)
+        }
+    }
+    if (length(dup_lines)==0) {
         return(empty_df)
     }
-
-    dup_lines = event_lines[dup_positions]
     dup_items = strsplit(dup_lines, "\\s+")
     parsed = lapply(dup_items, function(item_vec) {
         item_values = item_vec[nchar(item_vec)>0]

@@ -89,6 +89,10 @@
     if (length(split_label) < species_len || species_len < 2L) {
         return(list(ok=FALSE, species_tokens=character(0), has_gene=FALSE))
     }
+    species_tokens = split_label[seq_len(species_len)]
+    if (any(is.na(species_tokens) | trimws(species_tokens) == '')) {
+        return(list(ok=FALSE, species_tokens=character(0), has_gene=FALSE))
+    }
 
     has_gene = length(split_label) > species_len
     if (require_gene && !has_gene) {
@@ -97,7 +101,7 @@
 
     list(
         ok=TRUE,
-        species_tokens=split_label[seq_len(species_len)],
+        species_tokens=species_tokens,
         has_gene=has_gene
     )
 }

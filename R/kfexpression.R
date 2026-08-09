@@ -5,9 +5,18 @@
 
 calc_complementarity = function(array1, array2, method='weighted') {
     # only works for positive values
-    stopifnot(length(array1)==length(array2))
-    stopifnot(all(array1>=0))
-    stopifnot(all(array2>=0))
+    if (length(array1) != length(array2)) {
+        stop('array1 and array2 must have equal length in calc_complementarity().')
+    }
+    if (!is.numeric(array1) || !is.numeric(array2)) {
+        stop('array1 and array2 must be numeric in calc_complementarity().')
+    }
+    if (anyNA(array1) || anyNA(array2) || any(!is.finite(array1)) || any(!is.finite(array2))) {
+        stop('array1 and array2 must contain only finite, non-missing values.')
+    }
+    if (any(array1 < 0) || any(array2 < 0)) {
+        stop('array1 and array2 must contain only non-negative values.')
+    }
     method_name = match.arg(method, c('weighted', 'independent'))
     num_item = length(array1)
     if (num_item == 0) {
