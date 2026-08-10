@@ -18,5 +18,6 @@ MAD_parallel(unrooted_newick, output_mode, ncpu = NULL)
 Newick text or a list whose detail depends on `output_mode`.
 }
 \description{
-Root a tree using parallel minimal ancestor deviation
+Multifurcations are scored directly and are not resolved into random binary
+trees.
 }

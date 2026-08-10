@@ -12,7 +12,8 @@ get_species_overlap_score(
 )
 }
 \arguments{
-\item{phy}{A binary `phylo` tree with unique tip labels.}
+\item{phy}{A `phylo` tree with unique tip labels. Multifurcating nodes use
+their maximum pairwise child-clade overlap.}
 
 \item{dc_cutoff}{Finite duplication-confidence cutoff in `[0, 1]`.}
 

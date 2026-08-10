@@ -22,8 +22,9 @@ get_duplication_confidence_score(
 \item{sep}{Literal separator in gene labels.}
 }
 \value{
-The Jaccard overlap of species below the two child clades, or `NA`
-  for a non-binary node.
+The maximum pairwise Jaccard overlap among child clades, or `NA`
+  when the node has fewer than two children. For binary nodes this is the
+  original two-child score.
 }
 \description{
 Calculate a duplication confidence score

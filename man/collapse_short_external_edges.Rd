@@ -7,7 +7,7 @@
 collapse_short_external_edges(tree, threshold = 1e-06, verbose = FALSE)
 }
 \arguments{
-\item{tree}{A binary `phylo` tree with branch lengths.}
+\item{tree}{A `phylo` tree with branch lengths.}
 
 \item{threshold}{Finite non-negative minimum edge length.}
 

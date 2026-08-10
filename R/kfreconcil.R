@@ -7,8 +7,9 @@
 #' @param species_parser Species-label convention: `"legacy"` or
 #'   `"taxonomic"`.
 #' @param sep Literal separator in gene labels.
-#' @return The Jaccard overlap of species below the two child clades, or `NA`
-#'   for a non-binary node.
+#' @return The maximum pairwise Jaccard overlap among child clades, or `NA`
+#'   when the node has fewer than two children. For binary nodes this is the
+#'   original two-child score.
 #' @export
 get_duplication_confidence_score = function(phy, node_num, species_parser='legacy', sep='_') {
     .validate_phylo_input(phy, context='phy', unique_tips=TRUE)
@@ -31,7 +32,7 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
         allow_empty=FALSE
     )
     children_num = get_children_num(phy, node_num)
-    if (length(children_num)==2) {
+    if (length(children_num)>=2) {
         child_leaves = vector(mode='list', length(children_num))
         for (j in seq_along(children_num)) {
             child_leaves[[j]] = get_tip_labels(phy, children_num[j])
@@ -51,13 +52,49 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
             }
             child_leaves[[j]] = parsed_species[['species_labels']]
         }
-        sp_intersect = intersect(child_leaves[[1]], child_leaves[[2]])
-        sp_union = union(child_leaves[[1]], child_leaves[[2]])
-        dc_score = length(sp_intersect) / length(sp_union)
+        dc_score = .max_pairwise_species_overlap(child_leaves)
     } else {
         dc_score = NA
     }
     return(dc_score)
+}
+
+.species_jaccard = function(species1, species2) {
+    species1 = unique(species1)
+    species2 = unique(species2)
+    if (!length(species1) && !length(species2)) {
+        return(0)
+    }
+    intersect_count = if (length(species1) <= length(species2)) {
+        sum(species1 %in% species2)
+    } else {
+        sum(species2 %in% species1)
+    }
+    union_count = length(species1) + length(species2) - intersect_count
+    if (union_count == 0L) {
+        return(0)
+    }
+    intersect_count / union_count
+}
+
+.max_pairwise_species_overlap = function(child_species) {
+    num_children = length(child_species)
+    if (num_children < 2L) {
+        return(NA_real_)
+    }
+    max_overlap = 0
+    for (first_index in seq_len(num_children - 1L)) {
+        for (second_index in seq.int(first_index + 1L, num_children)) {
+            max_overlap = max(
+                max_overlap,
+                .species_jaccard(
+                    child_species[[first_index]],
+                    child_species[[second_index]]
+                )
+            )
+        }
+    }
+    max_overlap
 }
 
 # Assigns compact internal species_id values for species-overlap algorithms.
@@ -166,22 +203,14 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
     overlap_count = 0L
     for (node_num in internal_nodes) {
         children_num = children_by_parent[[as.character(node_num)]]
-        if (length(children_num) != 2) {
+        if (length(children_num) < 2L) {
             next
         }
 
-        child_sp1 = resolve_species(as.integer(children_num[1]))
-        child_sp2 = resolve_species(as.integer(children_num[2]))
-        if (length(child_sp1) <= length(child_sp2)) {
-            sp_intersect = sum(child_sp1 %in% child_sp2)
-        } else {
-            sp_intersect = sum(child_sp2 %in% child_sp1)
-        }
-        sp_union = length(child_sp1) + length(child_sp2) - sp_intersect
-        if (sp_union == 0) {
-            next
-        }
-        dc_score = sp_intersect / sp_union
+        child_species = lapply(children_num, function(child_num) {
+            resolve_species(as.integer(child_num))
+        })
+        dc_score = .max_pairwise_species_overlap(child_species)
         if (!is.na(dc_score) && dc_score > dc_cutoff) {
             overlap_count = overlap_count + 1L
         }
@@ -191,7 +220,8 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
 
 #' Score species-overlap duplications in a gene tree
 #'
-#' @param phy A binary `phylo` tree with unique tip labels.
+#' @param phy A `phylo` tree with unique tip labels. Multifurcating nodes use
+#'   their maximum pairwise child-clade overlap.
 #' @param dc_cutoff Finite duplication-confidence cutoff in `[0, 1]`.
 #' @param species_parser Species-label convention.
 #' @param sep Literal separator in gene labels.
@@ -211,7 +241,6 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
     .validate_phylo_input(
         phy,
         context='phy',
-        binary=TRUE,
         unique_tips=TRUE
     )
     dc_cutoff = .normalize_finite_numeric_scalar(
@@ -232,13 +261,17 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
 .directed_species_overlap_scores = function(phy, species_ids, dc_cutoff=0) {
     root_num = get_root_num(phy)
     root_children = get_children_num(phy, root_num)
-    if (length(root_num) != 1L || length(root_children) != 2L) {
-        stop('Root-position scoring requires a rooted binary tree with two root children.')
+    if (length(root_num) != 1L || length(root_children) < 2L) {
+        stop('Root-position scoring requires a tree with one root and at least two root children.')
     }
 
     original_edges = phy[['edge']]
-    nonroot_edges = original_edges[original_edges[,1] != root_num,,drop=FALSE]
-    unrooted_edges = rbind(nonroot_edges, root_children)
+    if (length(root_children) == 2L) {
+        nonroot_edges = original_edges[original_edges[,1] != root_num,,drop=FALSE]
+        unrooted_edges = rbind(nonroot_edges, root_children)
+    } else {
+        unrooted_edges = original_edges
+    }
     adjacency = split(
         c(unrooted_edges[,2], unrooted_edges[,1]),
         c(unrooted_edges[,1], unrooted_edges[,2])
@@ -279,20 +312,9 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
     component_species = new.env(parent=emptyenv(), hash=TRUE)
     component_scores = new.env(parent=emptyenv(), hash=TRUE)
 
-    overlap_indicator = function(species1, species2) {
-        if (!length(species1) && !length(species2)) {
-            return(0L)
-        }
-        intersect_count = if (length(species1) <= length(species2)) {
-            sum(species1 %in% species2)
-        } else {
-            sum(species2 %in% species1)
-        }
-        union_count = length(species1) + length(species2) - intersect_count
-        if (union_count == 0L) {
-            return(0L)
-        }
-        as.integer((intersect_count / union_count) > dc_cutoff)
+    overlap_indicator = function(child_species) {
+        score = .max_pairwise_species_overlap(child_species)
+        if (is.na(score)) 0L else as.integer(score > dc_cutoff)
     }
 
     build_message = function(from, to) {
@@ -311,14 +333,7 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
                 next_keys, envir=component_species, inherits=FALSE
             )
             species = unique(unlist(next_species, use.names=FALSE))
-            local_score = if (length(next_nodes) == 2L) {
-                overlap_indicator(
-                    next_species[[1]],
-                    next_species[[2]]
-                )
-            } else {
-                0L
-            }
+            local_score = overlap_indicator(next_species)
             score = as.numeric(local_score + sum(unlist(mget(
                 next_keys, envir=component_scores, inherits=FALSE
             ), use.names=FALSE)))
@@ -346,16 +361,16 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
         key21 = paste0(node2, '>', node1)
         get(key12, envir=component_scores, inherits=FALSE) +
             get(key21, envir=component_scores, inherits=FALSE) +
-            overlap_indicator(
+            overlap_indicator(list(
                 get(key12, envir=component_species, inherits=FALSE),
                 get(key21, envir=component_species, inherits=FALSE)
-            )
+            ))
     }
 
     vapply(seq_len(nrow(original_edges)), function(edge_index) {
         parent = original_edges[edge_index,1]
         child = original_edges[edge_index,2]
-        if (parent == root_num) {
+        if (length(root_children) == 2L && parent == root_num) {
             score_unrooted_edge(root_children[[1]], root_children[[2]])
         } else {
             score_unrooted_edge(parent, child)
@@ -368,7 +383,8 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
 #' Uses a bidirectional traversal; the legacy `nslots` argument is accepted but
 #' no worker pool is created.
 #'
-#' @param phy A rooted binary `phylo` tree with unique tip labels.
+#' @param phy A rooted `phylo` tree with unique tip labels. Multifurcating
+#'   nodes use their maximum pairwise child-clade overlap.
 #' @param nslots Legacy requested worker count.
 #' @param species_parser Species-label convention.
 #' @param sep Literal separator in gene labels.
@@ -393,10 +409,12 @@ get_root_position_dependent_species_overlap_scores = function(
     .validate_phylo_input(
         phy,
         context='phy',
-        rooted=TRUE,
-        binary=TRUE,
         unique_tips=TRUE
     )
+    root_num = get_root_num(phy)
+    if (length(root_num) != 1L || length(get_children_num(phy, root_num)) < 2L) {
+        stop('phy must contain one root with at least two children.')
+    }
     num_edges = nrow(phy[['edge']])
     if (num_edges == 0) {
         return(numeric(0))

@@ -17,5 +17,7 @@ force_ultrametric(tree, stop_if_larger_change = 0.01, verbose = FALSE)
 An ultrametric `phylo` tree.
 }
 \description{
-Adjust a tree to be ultrametric
+Binary trees are adjusted with [ape::chronoMPL()]. For multifurcating trees,
+terminal branches are extended to the maximum root-to-tip distance so the
+original topology is preserved.
 }

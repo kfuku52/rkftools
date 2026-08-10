@@ -364,6 +364,18 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
     if (length(unique(non_na_values)) == 1L) {
         return(non_na_values[[1]])
     }
+    child_counts = table(subtree[['edge']][,1])
+    if (any(child_counts != 2L)) {
+        gls_state = .nonbinary_root_gls(trait_values, subtree)
+        if (length(gls_state) == 1L && !is.na(gls_state) && is.finite(gls_state)) {
+            return(gls_state)
+        }
+        warning(
+            'Could not estimate a non-binary collapsed-clade root state ',
+            'with Brownian GLS; using the arithmetic mean.'
+        )
+        return(mean(non_na_values))
+    }
     ace_error = NULL
     ace_result = tryCatch(
         suppressWarnings(
@@ -400,6 +412,55 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
         return(mean(non_na_values))
     }
     root_state
+}
+
+.nonbinary_root_gls = function(trait_values, subtree) {
+    complete_indices = which(!is.na(trait_values))
+    if (!length(complete_indices)) {
+        return(NA_real_)
+    }
+    if (length(complete_indices) == 1L) {
+        return(trait_values[[complete_indices]])
+    }
+    if (is.null(subtree[['edge.length']]) ||
+            length(subtree[['edge.length']]) != nrow(subtree[['edge']]) ||
+            anyNA(subtree[['edge.length']]) ||
+            any(!is.finite(subtree[['edge.length']])) ||
+            any(subtree[['edge.length']] < 0)) {
+        return(NA_real_)
+    }
+    covariance = tryCatch(
+        ape::vcv.phylo(subtree, corr=FALSE),
+        error=function(e) NULL
+    )
+    if (is.null(covariance)) {
+        return(NA_real_)
+    }
+    complete_tips = subtree[['tip.label']][complete_indices]
+    covariance = covariance[complete_tips, complete_tips, drop=FALSE]
+    decomposition = tryCatch(
+        eigen((covariance + t(covariance)) / 2, symmetric=TRUE),
+        error=function(e) NULL
+    )
+    if (is.null(decomposition)) {
+        return(NA_real_)
+    }
+    max_value = max(abs(decomposition[['values']]))
+    tolerance = max(dim(covariance)) * max_value * sqrt(.Machine$double.eps)
+    retained = decomposition[['values']] > tolerance
+    if (!any(retained)) {
+        return(NA_real_)
+    }
+    vectors = decomposition[['vectors']][,retained,drop=FALSE]
+    values = decomposition[['values']][retained]
+    one = rep(1, length(complete_indices))
+    inverse_one = drop(vectors %*% (drop(crossprod(vectors, one)) / values))
+    denominator = sum(inverse_one)
+    if (!is.finite(denominator) || abs(denominator) <= .Machine$double.eps) {
+        return(NA_real_)
+    }
+    estimate = sum(inverse_one * trait_values[complete_indices]) / denominator
+    suppressWarnings(as.numeric(estimate))
 }
 
 #' Collapse selected clades and estimate their root traits

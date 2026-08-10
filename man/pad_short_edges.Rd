@@ -12,7 +12,7 @@ pad_short_edges(
 )
 }
 \arguments{
-\item{tree}{A binary `phylo` tree with branch lengths.}
+\item{tree}{A `phylo` tree with branch lengths.}
 
 \item{threshold}{Finite non-negative minimum edge length.}
 

@@ -12,7 +12,8 @@ get_root_position_dependent_species_overlap_scores(
 )
 }
 \arguments{
-\item{phy}{A rooted binary `phylo` tree with unique tip labels.}
+\item{phy}{A rooted `phylo` tree with unique tip labels. Multifurcating
+nodes use their maximum pairwise child-clade overlap.}
 
 \item{nslots}{Legacy requested worker count.}
 

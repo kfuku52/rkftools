@@ -15,5 +15,6 @@ MAD(unrooted_newick, output_mode)
 Newick text or a list whose detail depends on `output_mode`.
 }
 \description{
-Root a tree using minimal ancestor deviation
+Multifurcations are scored directly and are not resolved into random binary
+trees.
 }

@@ -1,3 +1,16 @@
+# rkftools 0.1.9
+
+- Preserve unary, binary, and multifurcating topologies in branch-table
+  conversion, short-edge padding, and ultrametric adjustment.
+- Generalize duplication-confidence and root-position species-overlap scoring
+  to any number of child clades using maximum pairwise Jaccard overlap.
+- Match multifurcating root partitions and map polytomy nodes into rooted binary
+  refinements, including root polytomies.
+- Estimate collapsed multifurcating clade traits with Brownian-motion GLS.
+- Score multifurcating trees directly in MAD without random binary resolution.
+- Add regression coverage for internal and root polytomies across conversions,
+  reconciliation, branch lengths, ancestral traits, mapping, and rooting.
+
 # rkftools 0.1.8
 
 - Establish an 80% coverage floor from the initial 81.3% baseline.

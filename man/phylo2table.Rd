@@ -18,8 +18,10 @@ A branch data frame with `branch_id`, `parent`, `sister`, labels,
   and distances.
 }
 \description{
-Supports rooted trees with unary or binary internal nodes and assigns stable
-branch identifiers from clade signatures.
+Supports rooted trees with unary, binary, or multifurcating internal nodes
+and assigns stable branch identifiers from clade signatures. Because the
+legacy `sister` column is singular, children with multiple siblings receive
+the sentinel `-999`; their shared `parent` fully represents the topology.
 }
 \examples{
 tree <- ape::read.tree(text="((A:1,B:1):1,C:1);")

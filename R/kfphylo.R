@@ -281,7 +281,7 @@ get_ancestor_num = function(phy, node_num) {
 #'
 #' Convenience wrapper around [pad_short_edges()] restricted to terminal edges.
 #'
-#' @param tree A binary `phylo` tree with branch lengths.
+#' @param tree A `phylo` tree with branch lengths.
 #' @param threshold Finite non-negative minimum edge length.
 #' @param verbose Whether to emit progress messages.
 #' @return A modified `phylo` tree.
@@ -297,7 +297,7 @@ collapse_short_external_edges = function(tree, threshold=1e-6, verbose=FALSE) {
 
 #' Pad short phylogenetic edges
 #'
-#' @param tree A binary `phylo` tree with branch lengths.
+#' @param tree A `phylo` tree with branch lengths.
 #' @param threshold Finite non-negative minimum edge length.
 #' @param external_only Whether to modify only terminal edges.
 #' @param verbose Whether to emit progress messages.
@@ -313,14 +313,19 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE, verbose=FA
         threshold, 'threshold', min_value=0
     )
     .validate_phylo_input(tree, context='tree', require_lengths=TRUE)
-    if (!ape::is.binary(tree)) {
-        stop('tree must be binary in pad_short_edges().')
-    }
     if (is.null(tree[['edge.length']]) || length(tree[['edge.length']]) != nrow(tree[['edge']])) {
         stop('tree must contain one branch length per edge in pad_short_edges().')
     }
     if (any(!is.finite(tree[['edge.length']][!is.na(tree[['edge.length']])]))) {
         stop('tree must not contain infinite branch lengths in pad_short_edges().')
+    }
+    if (any(table(tree[['edge']][,1]) != 2L)) {
+        return(.pad_short_edges_multifurcating(
+            tree,
+            threshold=threshold,
+            external_only=external_only,
+            verbose=verbose
+        ))
     }
     out_tree = tree
     edge_idx = seq_len(nrow(out_tree$edge))
@@ -387,6 +392,117 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE, verbose=FA
         }
     }
     return(out_tree)
+}
+
+.pad_short_edges_multifurcating = function(
+    tree,
+    threshold,
+    external_only,
+    verbose
+) {
+    out_tree = tree
+    num_tip = length(out_tree[['tip.label']])
+    is_target_edge = rep(TRUE, nrow(out_tree[['edge']]))
+    if (external_only) {
+        is_target_edge = out_tree[['edge']][,2] <= num_tip
+    }
+    target_lengths = out_tree[['edge.length']][is_target_edge]
+    non_na_target_lengths = target_lengths[!is.na(target_lengths)]
+    min_target_length = if (length(non_na_target_lengths)) {
+        min(non_na_target_lengths)
+    } else {
+        NA_real_
+    }
+    if (verbose) {
+        message('Minimum edge length: ', min_target_length)
+    }
+    if (verbose && anyNA(target_lengths)) {
+        message('NA edge lengths were ignored when searching short edges.')
+    }
+    is_short_edge = is_target_edge & !is.na(out_tree[['edge.length']]) &
+        out_tree[['edge.length']] < threshold
+    if (verbose) {
+        message(
+            'Number of short edges (length < ', threshold, '): ',
+            sum(is_short_edge)
+        )
+    }
+    if (!any(is_short_edge)) {
+        return(out_tree)
+    }
+
+    index = .build_phy_index(out_tree, context='tree')
+    node_depth = numeric(index[['max_node']])
+    for (node_num in index[['preorder']][-1L]) {
+        parent_num = index[['parent']][[as.character(node_num)]]
+        node_depth[[node_num]] = node_depth[[parent_num]] + 1
+    }
+    parent_nodes = unique(out_tree[['edge']][,1])
+    parent_nodes = parent_nodes[order(node_depth[parent_nodes], decreasing=TRUE)]
+    warned_incomplete_transfer = FALSE
+
+    for (parent_num in parent_nodes) {
+        outgoing_indices = which(out_tree[['edge']][,1] == parent_num)
+        target_indices = outgoing_indices
+        if (external_only) {
+            target_indices = target_indices[
+                out_tree[['edge']][target_indices,2] <= num_tip
+            ]
+        }
+        finite_target_indices = target_indices[
+            !is.na(out_tree[['edge.length']][target_indices])
+        ]
+        if (!length(finite_target_indices)) {
+            next
+        }
+        shift_value = max(
+            threshold - out_tree[['edge.length']][finite_target_indices],
+            0
+        )
+        if (shift_value <= 0) {
+            next
+        }
+
+        out_tree[['edge.length']][outgoing_indices] =
+            out_tree[['edge.length']][outgoing_indices] + shift_value
+        if (parent_num == index[['root']]) {
+            if (verbose) {
+                message(
+                    'Adding branch length to root-child edges ',
+                    paste(outgoing_indices, collapse=', '), '.'
+                )
+            }
+            next
+        }
+
+        incoming_index = which(out_tree[['edge']][,2] == parent_num)
+        incoming_length = out_tree[['edge.length']][incoming_index]
+        available_length = if (
+            length(incoming_length) == 1L && !is.na(incoming_length)
+        ) {
+            max(incoming_length, 0)
+        } else {
+            0
+        }
+        transferred = min(shift_value, available_length)
+        if (transferred > 0) {
+            out_tree[['edge.length']][incoming_index] = incoming_length - transferred
+        }
+        if (verbose) {
+            message(
+                'Transferring branch length from edge ', incoming_index,
+                ' to child edges ', paste(outgoing_indices, collapse=', '), '.'
+            )
+        }
+        if (transferred < shift_value && !warned_incomplete_transfer) {
+            warning(
+                'Insufficient incoming branch length to preserve all root-to-tip ',
+                'distances while padding a multifurcation.'
+            )
+            warned_incomplete_transfer = TRUE
+        }
+    }
+    out_tree
 }
 
 #' Get tip labels below nodes
@@ -575,17 +691,17 @@ is_same_root = function(phy1, phy2) {
 #' rerooting `phy1`.
 #'
 #' @param phy1 A `phylo` tree in which to locate the split.
-#' @param phy2 A rooted binary `phylo` tree providing the target root split.
+#' @param phy2 A rooted `phylo` tree providing the target root partition.
 #' @param nslots Legacy worker-count argument; accepted but no workers are used.
 #' @param mode Return `"node_num"` or edge `"index"`.
-#' @return An integer node number or edge index, or `NA` when unmatched.
+#' @return An integer node number or edge index, or `NA` when unmatched. When a
+#'   multifurcating target root matches the current root of `phy1`, `mode =
+#'   "index"` returns `NA` because the root has no incoming edge.
 #' @export
 get_phy2_root_in_phy1 = function(phy1, phy2, nslots=NULL, mode=c("node_num", "index")) {
     mode_name = match.arg(mode)
     .validate_phylo_input(phy1, context='phy1', unique_tips=TRUE)
-    .validate_phylo_input(
-        phy2, context='phy2', rooted=TRUE, binary=TRUE, unique_tips=TRUE
-    )
+    .validate_phylo_input(phy2, context='phy2', unique_tips=TRUE)
     # nslots is retained for API compatibility. Root matching is now a single
     # traversal and does not benefit from a worker pool.
     if (!is.null(nslots)) {
@@ -600,7 +716,53 @@ get_phy2_root_in_phy1 = function(phy1, phy2, nslots=NULL, mode=c("node_num", "in
     }
 
     phy2_root = get_root_num(phy2)
+    if (length(phy2_root) != 1L) {
+        stop('phy2 must have exactly one root node.')
+    }
     phy2_root_children = get_children_num(phy2, phy2_root)
+    if (length(phy2_root_children) < 2L) {
+        stop('phy2 root must have at least two children.')
+    }
+
+    if (length(phy2_root_children) > 2L) {
+        phy2_tip_sets = .get_node_tip_sets(phy2)
+        target_partition = .get_node_component_signatures(
+            phy2,
+            phy2_root,
+            include_complement=FALSE,
+            tip_sets=phy2_tip_sets
+        )
+        phy1_index = .build_phy_index(phy1, context='phy1')
+        phy1_tip_sets = .get_node_tip_sets(phy1)
+        candidate_nodes = unique(c(
+            phy1_index[['root']],
+            phy1[['edge']][,1]
+        ))
+        matched_node = NA_integer_
+        for (candidate_node in candidate_nodes) {
+            candidate_partition = .get_node_component_signatures(
+                phy1,
+                candidate_node,
+                include_complement=(candidate_node != phy1_index[['root']]),
+                tip_sets=phy1_tip_sets
+            )
+            if (identical(candidate_partition, target_partition)) {
+                matched_node = as.integer(candidate_node)
+                break
+            }
+        }
+        if (is.na(matched_node)) {
+            return(NA)
+        }
+        if (mode_name == 'node_num') {
+            return(matched_node)
+        }
+        if (matched_node == phy1_index[['root']]) {
+            return(NA_integer_)
+        }
+        return(which(phy1[['edge']][,2] == matched_node)[[1]])
+    }
+
     reference_tips = get_tip_labels(phy2, phy2_root_children[[1]])
     reference_signature = .encode_tip_signature(reference_tips)
     all_tips = as.character(phy1[['tip.label']])
@@ -806,10 +968,6 @@ get_rooted_newick = function(t, madr, rho) {
     if (ape::is.rooted(t)) {
         t = ape::unroot(t)
     }
-    if (!ape::is.binary(t)) {
-        warning("Input tree is not binary! Internal multifurcations will be converted to branches of length zero and identical OTUs will be collapsed!")
-        t = ape::multi2di(t)
-    }
     if (is.null(t$edge.length)) {
         stop("Input tree has no branch lengths. MAD requires branch lengths.")
     }
@@ -904,6 +1062,9 @@ get_rooted_newick = function(t, madr, rho) {
 
 #' Root a tree using minimal ancestor deviation
 #'
+#' Multifurcations are scored directly and are not resolved into random binary
+#' trees.
+#'
 #' @param unrooted_newick A Newick string or `phylo` tree.
 #' @param output_mode One of `"newick"`, `"stats"`, `"full"`, or `"custom"`.
 #' @return Newick text or a list whose detail depends on `output_mode`.
@@ -937,6 +1098,9 @@ MAD <- function(unrooted_newick,output_mode){
 }
 
 #' Root a tree using parallel minimal ancestor deviation
+#'
+#' Multifurcations are scored directly and are not resolved into random binary
+#' trees.
 #'
 #' @param unrooted_newick A Newick string or `phylo` tree.
 #' @param output_mode One of `"newick"`, `"stats"`, `"full"`, or `"custom"`.
@@ -1177,12 +1341,22 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree, ve
     if (!identical(mtree[['tip.label']], btree[['tip.label']])) {
         stop('multifurcated_tree and bifurcated_tree must have identical tip-label order.')
     }
-    if (!is_same_root(mtree, btree)) {
-        stop('multifurcated_tree and bifurcated_tree must have the same root split.')
-    }
-    topo_dist = ape::dist.topo(ape::unroot(mtree), ape::unroot(btree), method='PH85')
-    if (is.na(topo_dist)) {
-        stop('Unable to compute topological distance in multi2bi_node_number_transfer().')
+    .validate_phylo_input(mtree, context='multifurcated_tree', unique_tips=TRUE)
+    .validate_phylo_input(
+        btree, context='bifurcated_tree', binary=TRUE, unique_tips=TRUE
+    )
+    mtree_signatures = .get_node_tip_signatures(mtree)
+    btree_signatures = .get_node_tip_signatures(btree)
+    mtree_internal_nodes = unique(mtree[['edge']][,1])
+    missing_signatures = setdiff(
+        unname(mtree_signatures[as.character(mtree_internal_nodes)]),
+        unname(btree_signatures)
+    )
+    if (length(missing_signatures)) {
+        stop(
+            'bifurcated_tree must be a rooted binary refinement of ',
+            'multifurcated_tree.'
+        )
     }
     internal_node_counts = table(mtree[['edge']][,1])
     polytomy_parents = as.integer(names(internal_node_counts)[internal_node_counts > 2])
@@ -1192,21 +1366,17 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree, ve
     if (verbose) {
         message('Polytomy parent nodes: ', paste(polytomy_parents, collapse=', '))
     }
-    df = data.frame()
+    df = data.frame(mtree_node=integer(0), btree_node=integer(0))
     for (mtree_pp in polytomy_parents) {
-        mtree_pp_leaves = sort(get_tip_labels(mtree, mtree_pp))
-        matched = FALSE
-        for (btree_internal_node in btree$edge[,1]) {
-            btree_in_leaves = sort(get_tip_labels(btree, btree_internal_node))
-            if (length(mtree_pp_leaves)==length(btree_in_leaves)) {
-                if (all(mtree_pp_leaves==btree_in_leaves)) {
-                    df = rbind(df, data.frame(mtree_node=mtree_pp, btree_node=btree_internal_node))
-                    matched = TRUE
-                    break
-                }
-            }
-        }
-        if (!matched) {
+        matched_nodes = as.integer(names(btree_signatures)[
+            btree_signatures == mtree_signatures[[as.character(mtree_pp)]]
+        ])
+        if (length(matched_nodes)) {
+            df = rbind(df, data.frame(
+                mtree_node=mtree_pp,
+                btree_node=matched_nodes[[1]]
+            ))
+        } else {
             warning('Failed to map polytomy parent node to bifurcated tree: ', mtree_pp)
         }
     }
@@ -1216,6 +1386,26 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree, ve
 .encode_tip_signature = function(tip_labels) {
     tip_labels = sort(as.character(tip_labels))
     paste0(nchar(tip_labels), ':', tip_labels, collapse='|')
+}
+
+.get_node_component_signatures = function(
+    phy,
+    node_num,
+    include_complement=FALSE,
+    tip_sets=NULL
+) {
+    if (is.null(tip_sets)) {
+        tip_sets = .get_node_tip_sets(phy)
+    }
+    children = get_children_num(phy, node_num)
+    component_sets = tip_sets[as.character(children)]
+    if (include_complement) {
+        component_sets = c(
+            component_sets,
+            list(setdiff(phy[['tip.label']], tip_sets[[as.character(node_num)]]))
+        )
+    }
+    sort(unname(vapply(component_sets, .encode_tip_signature, character(1))))
 }
 
 .build_phy_index = function(phy, context='phy') {
@@ -1362,6 +1552,10 @@ collapse_short_branches = function(tree, tol=1e-8, verbose=FALSE) {
 
 #' Adjust a tree to be ultrametric
 #'
+#' Binary trees are adjusted with [ape::chronoMPL()]. For multifurcating trees,
+#' terminal branches are extended to the maximum root-to-tip distance so the
+#' original topology is preserved.
+#'
 #' @param tree A `phylo` tree with finite branch lengths.
 #' @param stop_if_larger_change Maximum fractional total adjustment.
 #' @param verbose Whether to emit progress messages.
@@ -1392,7 +1586,20 @@ force_ultrametric = function(tree, stop_if_larger_change=0.01, verbose=FALSE) {
             message('The tree is not ultrametric. Adjusting the branch length.')
         }
         edge_length_before = out_tree[['edge.length']]
-        out_tree = ape::chronoMPL(out_tree)
+        if (all(table(out_tree[['edge']][,1]) == 2L)) {
+            out_tree = ape::chronoMPL(out_tree)
+        } else {
+            num_tip = length(out_tree[['tip.label']])
+            tip_depths = ape::node.depth.edgelength(out_tree)[seq_len(num_tip)]
+            target_depth = max(tip_depths)
+            tip_edge_indices = match(
+                seq_len(num_tip),
+                out_tree[['edge']][,2]
+            )
+            out_tree[['edge.length']][tip_edge_indices] =
+                out_tree[['edge.length']][tip_edge_indices] +
+                (target_depth - tip_depths)
+        }
         edge_length_after = out_tree[['edge.length']]
         sum_adjustment = sum(abs(edge_length_after-edge_length_before))
         if (verbose) {
@@ -1575,12 +1782,14 @@ remove_redundant_root_edge = function(phy) {
     for (parent_id in names(children_by_parent)) {
         children = children_by_parent[[parent_id]]
         if (length(children) > 2L) {
-            stop(
-                'table2phylo() requires a binary tree; parent branch_id ',
-                parent_id, ' has ', length(children), ' children.'
-            )
-        }
-        if (length(children) == 1L) {
+            child_indices = match(children, branch_ids)
+            if (any(!.table2phylo_is_parent_sentinel(sister_ids[child_indices]))) {
+                stop(
+                    'Children of a multifurcating parent must use sentinel sister values ',
+                    'in table2phylo(): parent branch_id ', parent_id, '.'
+                )
+            }
+        } else if (length(children) == 1L) {
             child_index = match(children, branch_ids)
             if (!.table2phylo_is_parent_sentinel(sister_ids[[child_index]])) {
                 stop(
@@ -1611,7 +1820,9 @@ remove_redundant_root_edge = function(phy) {
 #'
 #' The table must describe one connected rooted tree. `branch_id`, `parent`,
 #' and `sister` are identifiers; `-999`, blank, or missing values denote root
-#' and missing-sister sentinels. Unary and binary nodes are supported.
+#' and missing-sister sentinels. `parent` is the canonical topology field.
+#' Binary children use reciprocal `sister` identifiers, while unary and
+#' multifurcating children use sister sentinels.
 #'
 #' @param df A non-empty branch data frame.
 #' @param name_col Name of the node-label column.
@@ -1763,8 +1974,10 @@ table2phylo = function(df, name_col, dist_col) {
 
 #' Convert a phylogenetic tree to a branch table
 #'
-#' Supports rooted trees with unary or binary internal nodes and assigns stable
-#' branch identifiers from clade signatures.
+#' Supports rooted trees with unary, binary, or multifurcating internal nodes
+#' and assigns stable branch identifiers from clade signatures. Because the
+#' legacy `sister` column is singular, children with multiple siblings receive
+#' the sentinel `-999`; their shared `parent` fully represents the topology.
 #'
 #' @param phy A rooted `phylo` tree with finite branch lengths and unique tips.
 #' @param name_col Output node-label column name.
@@ -1873,12 +2086,10 @@ phylo2table = function(phy, name_col='label', dist_col='dist') {
         } else {
             parent_num = as.integer(parent_num_by_child_num[as.character(node_num)])
             sister_nums = setdiff(as.integer(child_nums_by_parent_num[[as.character(parent_num)]]), node_num)
-            if (length(sister_nums) == 0) {
+            if (length(sister_nums) == 0 || length(sister_nums) > 1) {
                 sister_id = -999L
             } else if (length(sister_nums) == 1) {
                 sister_id = unname(branch_id_by_node_num[as.character(sister_nums)])
-            } else {
-                stop('phylo2table() currently requires a binary rooted tree.')
             }
             parent_id = unname(branch_id_by_node_num[as.character(parent_num)])
             branch_dist = as.numeric(edge_length_by_child_num[as.character(node_num)])

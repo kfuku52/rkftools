@@ -19,7 +19,9 @@ A rooted `phylo` tree. Root-row distance is stored as `root.edge`.
 \description{
 The table must describe one connected rooted tree. `branch_id`, `parent`,
 and `sister` are identifiers; `-999`, blank, or missing values denote root
-and missing-sister sentinels. Unary and binary nodes are supported.
+and missing-sister sentinels. `parent` is the canonical topology field.
+Binary children use reciprocal `sister` identifiers, while unary and
+multifurcating children use sister sentinels.
 }
 \examples{
 tab <- data.frame(
