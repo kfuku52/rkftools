@@ -8,8 +8,8 @@
 #'   `"taxonomic"`.
 #' @param sep Literal separator in gene labels.
 #' @return The maximum pairwise Jaccard overlap among child clades, or `NA`
-#'   when the node has fewer than two children. For binary nodes this is the
-#'   original two-child score.
+#'   when the node has fewer than two children or is the trivalent display root
+#'   of an unrooted tree. For binary nodes this is the original two-child score.
 #' @export
 get_duplication_confidence_score = function(phy, node_num, species_parser='legacy', sep='_') {
     .validate_phylo_input(phy, context='phy', unique_tips=TRUE)
@@ -32,6 +32,11 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
         allow_empty=FALSE
     )
     children_num = get_children_num(phy, node_num)
+    root_num = get_root_num(phy)
+    if (!ape::is.rooted(phy) && length(root_num) == 1L &&
+            node_num == root_num && length(children_num) == 3L) {
+        return(NA)
+    }
     if (length(children_num)>=2) {
         child_leaves = vector(mode='list', length(children_num))
         for (j in seq_along(children_num)) {
@@ -196,6 +201,13 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
 
     internal_nodes = as.integer(names(children_by_parent))
     internal_nodes = internal_nodes[internal_nodes > tip_count]
+    if (!ape::is.rooted(phy)) {
+        root_num = get_root_num(phy)
+        if (length(root_num) == 1L &&
+                length(children_by_parent[[as.character(root_num)]]) == 3L) {
+            internal_nodes = setdiff(internal_nodes, root_num)
+        }
+    }
     if (!length(internal_nodes)) {
         return(0)
     }
@@ -311,48 +323,122 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
 
     component_species = new.env(parent=emptyenv(), hash=TRUE)
     component_scores = new.env(parent=emptyenv(), hash=TRUE)
+    local_overlap_by_excluded_neighbor = new.env(parent=emptyenv(), hash=TRUE)
 
     overlap_indicator = function(child_species) {
         score = .max_pairwise_species_overlap(child_species)
         if (is.na(score)) 0L else as.integer(score > dc_cutoff)
     }
 
-    build_message = function(from, to) {
+    build_species_message = function(from, to) {
         key = paste0(from, '>', to)
         next_nodes = setdiff(adjacency[[as.character(to)]], from)
         next_keys = paste0(to, '>', next_nodes)
         if (to <= length(species_ids)) {
             species = species_ids[[to]]
-            score = 0
         } else {
             if (any(!vapply(next_keys, exists, logical(1),
                     envir=component_species, inherits=FALSE))) {
-                stop('Invalid traversal state in root-position scoring.')
+                stop('Invalid species traversal state in root-position scoring.')
             }
             next_species = mget(
                 next_keys, envir=component_species, inherits=FALSE
             )
             species = unique(unlist(next_species, use.names=FALSE))
-            local_score = overlap_indicator(next_species)
+        }
+        assign(key, species, envir=component_species)
+        invisible(NULL)
+    }
+
+    # Species sets do not depend on overlap scores, so calculate every directed
+    # species message before scoring nodes. This permits each node's qualifying
+    # child pairs to be counted once rather than recomputed for every excluded
+    # neighbor.
+    for (to in rev(traversal_order[-1L])) {
+        build_species_message(parent_by_node[[to]], to)
+    }
+    for (from in traversal_order) {
+        children = adjacency[[as.character(from)]]
+        is_child = !is.na(parent_by_node[children]) &
+            parent_by_node[children] == from
+        children = children[is_child]
+        for (to in children) {
+            build_species_message(to, from)
+        }
+    }
+
+    internal_nodes = nodes[nodes > length(species_ids)]
+    for (node in internal_nodes) {
+        neighbors = adjacency[[as.character(node)]]
+        neighbor_species = mget(
+            paste0(node, '>', neighbors),
+            envir=component_species,
+            inherits=FALSE
+        )
+        num_qualifying_pairs = 0L
+        incident_qualifying_pairs = integer(length(neighbors))
+        if (length(neighbors) >= 2L) {
+            for (first_index in seq_len(length(neighbors) - 1L)) {
+                for (second_index in seq.int(first_index + 1L, length(neighbors))) {
+                    if (.species_jaccard(
+                            neighbor_species[[first_index]],
+                            neighbor_species[[second_index]]
+                        ) > dc_cutoff) {
+                        num_qualifying_pairs = num_qualifying_pairs + 1L
+                        incident_qualifying_pairs[[first_index]] =
+                            incident_qualifying_pairs[[first_index]] + 1L
+                        incident_qualifying_pairs[[second_index]] =
+                            incident_qualifying_pairs[[second_index]] + 1L
+                    }
+                }
+            }
+        }
+        excluded_indicators = as.integer(
+            num_qualifying_pairs - incident_qualifying_pairs > 0L
+        )
+        for (neighbor_index in seq_along(neighbors)) {
+            assign(
+                paste0(neighbors[[neighbor_index]], '>', node),
+                excluded_indicators[[neighbor_index]],
+                envir=local_overlap_by_excluded_neighbor
+            )
+        }
+    }
+
+    build_score_message = function(from, to) {
+        key = paste0(from, '>', to)
+        if (to <= length(species_ids)) {
+            score = 0
+        } else {
+            next_nodes = setdiff(adjacency[[as.character(to)]], from)
+            next_keys = paste0(to, '>', next_nodes)
+            if (any(!vapply(next_keys, exists, logical(1),
+                    envir=component_scores, inherits=FALSE))) {
+                stop('Invalid score traversal state in root-position scoring.')
+            }
+            local_score = get(
+                key,
+                envir=local_overlap_by_excluded_neighbor,
+                inherits=FALSE
+            )
             score = as.numeric(local_score + sum(unlist(mget(
                 next_keys, envir=component_scores, inherits=FALSE
             ), use.names=FALSE)))
         }
-        assign(key, species, envir=component_species)
         assign(key, score, envir=component_scores)
         invisible(NULL)
     }
 
-    # First calculate messages towards the traversal root, then propagate the
-    # complementary messages away from it. Each directed edge is visited once.
     for (to in rev(traversal_order[-1L])) {
-        build_message(parent_by_node[[to]], to)
+        build_score_message(parent_by_node[[to]], to)
     }
     for (from in traversal_order) {
         children = adjacency[[as.character(from)]]
-        children = children[parent_by_node[children] == from]
+        is_child = !is.na(parent_by_node[children]) &
+            parent_by_node[children] == from
+        children = children[is_child]
         for (to in children) {
-            build_message(to, from)
+            build_score_message(to, from)
         }
     }
 

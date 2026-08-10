@@ -438,25 +438,33 @@ get_high_similarity_clades = function(tree, trait_table, method, threshold, verb
     }
     complete_tips = subtree[['tip.label']][complete_indices]
     covariance = covariance[complete_tips, complete_tips, drop=FALSE]
+    covariance = (covariance + t(covariance)) / 2
+    covariance_scale = max(abs(covariance))
+    if (!is.finite(covariance_scale)) {
+        return(NA_real_)
+    }
+    if (covariance_scale == 0) {
+        return(mean(trait_values[complete_indices]))
+    }
     decomposition = tryCatch(
-        eigen((covariance + t(covariance)) / 2, symmetric=TRUE),
+        eigen(covariance / covariance_scale, symmetric=TRUE),
         error=function(e) NULL
     )
     if (is.null(decomposition)) {
         return(NA_real_)
     }
     max_value = max(abs(decomposition[['values']]))
-    tolerance = max(dim(covariance)) * max_value * sqrt(.Machine$double.eps)
-    retained = decomposition[['values']] > tolerance
-    if (!any(retained)) {
+    tolerance = max(dim(covariance)) * max_value * .Machine$double.eps
+    if (any(decomposition[['values']] < -tolerance)) {
         return(NA_real_)
     }
-    vectors = decomposition[['vectors']][,retained,drop=FALSE]
-    values = decomposition[['values']][retained]
+    vectors = decomposition[['vectors']]
+    values = decomposition[['values']]
+    values[values <= 0] = tolerance
     one = rep(1, length(complete_indices))
     inverse_one = drop(vectors %*% (drop(crossprod(vectors, one)) / values))
     denominator = sum(inverse_one)
-    if (!is.finite(denominator) || abs(denominator) <= .Machine$double.eps) {
+    if (!is.finite(denominator) || denominator == 0) {
         return(NA_real_)
     }
     estimate = sum(inverse_one * trait_values[complete_indices]) / denominator

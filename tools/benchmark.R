@@ -19,7 +19,27 @@ benchmark_root_mapping <- function(n_tip) {
     )
 }
 
-result <- do.call(rbind, lapply(c(200L, 400L, 800L), benchmark_root_mapping))
+benchmark_root_overlap <- function(n_tip) {
+    tree <- ape::stree(n_tip, type="star")
+    tree$edge.length <- rep(1, nrow(tree$edge))
+    tree$root.edge <- 0
+    tree$tip.label <- paste0("S", seq_len(n_tip), "_sp_g")
+    elapsed <- system.time({
+        result <- get_root_position_dependent_species_overlap_scores(tree)
+    })[["elapsed"]]
+    stopifnot(length(result) == nrow(tree$edge))
+    data.frame(
+        benchmark="get_root_position_dependent_species_overlap_scores",
+        tips=n_tip,
+        edges=nrow(tree$edge),
+        elapsed_seconds=unname(elapsed)
+    )
+}
+
+result <- rbind(
+    do.call(rbind, lapply(c(200L, 400L, 800L), benchmark_root_mapping)),
+    do.call(rbind, lapply(c(50L, 100L, 200L), benchmark_root_overlap))
+)
 print(result, row.names=FALSE)
 
 summary_path <- Sys.getenv("GITHUB_STEP_SUMMARY")

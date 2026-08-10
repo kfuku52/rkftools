@@ -1,6 +1,6 @@
 # Overview
 [![R-CMD-check](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml/badge.svg)](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml)
-[![Version](https://img.shields.io/badge/version-0.1.9-informational)](https://github.com/kfuku52/rkftools)
+[![Version](https://img.shields.io/badge/version-0.1.10-informational)](https://github.com/kfuku52/rkftools)
 [![R](https://img.shields.io/badge/R-%3E%3D%204.1.0-276DC3?logo=r)](https://www.r-project.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.md)
 [![Last commit](https://img.shields.io/github/last-commit/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/commits/master)
@@ -45,9 +45,9 @@ remotes::install_github("kfuku52/rkftools", ref = "master")
 `branch_id`, while `node_name` stores the tip or internal-node label.
 `phylo2table()` returns the same schema with numerical labels generated from
 clade signatures, matching genegalleon's `numerical_label` convention.
-`table2phylo()` validates that the table describes one connected rooted tree
-with at most two children per node, checks reciprocal sister relationships,
-and preserves exact zero-length branches.
+`table2phylo()` validates that the table describes one connected rooted tree.
+Binary children use reciprocal sister references; unary and multifurcating
+children use sister sentinels. Exact zero-length branches are preserved.
 
 ```r
 library(rkftools)

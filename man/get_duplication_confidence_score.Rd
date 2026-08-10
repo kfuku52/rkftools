@@ -23,8 +23,8 @@ get_duplication_confidence_score(
 }
 \value{
 The maximum pairwise Jaccard overlap among child clades, or `NA`
-  when the node has fewer than two children. For binary nodes this is the
-  original two-child score.
+  when the node has fewer than two children or is the trivalent display root
+  of an unrooted tree. For binary nodes this is the original two-child score.
 }
 \description{
 Calculate a duplication confidence score

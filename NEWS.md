@@ -1,3 +1,16 @@
+# rkftools 0.1.10
+
+- Preserve zero-length root edges so root polytomies remain rooted across
+  repeated branch-table conversions.
+- Stabilize Brownian GLS ancestral-state estimates for very short and zero
+  branches without discarding informative covariance directions.
+- Restore v0.1.8 behavior for unrooted binary trees in branch-length
+  transformations and reconciliation scores, and distinguish trivalent binary
+  roots from true polytomies.
+- Reduce root-position species-overlap scoring on high-degree nodes from cubic
+  to quadratic time and add a star-tree benchmark.
+- Align the README branch-table contract with multifurcation support.
+
 # rkftools 0.1.9
 
 - Preserve unary, binary, and multifurcating topologies in branch-table

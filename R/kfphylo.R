@@ -319,7 +319,7 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE, verbose=FA
     if (any(!is.finite(tree[['edge.length']][!is.na(tree[['edge.length']])]))) {
         stop('tree must not contain infinite branch lengths in pad_short_edges().')
     }
-    if (any(table(tree[['edge']][,1]) != 2L)) {
+    if (!ape::is.binary(tree)) {
         return(.pad_short_edges_multifurcating(
             tree,
             threshold=threshold,
@@ -1303,12 +1303,20 @@ leaf2species = function(leaf_names, use_underbar=FALSE, species_parser='legacy',
 #' @return A single logical value.
 #' @export
 contains_polytomy = function(phy) {
-    if (max(table(phy[['edge']][,1]))>2) {
-        is_polytomy = TRUE
-    } else {
-        is_polytomy = FALSE
+    .validate_phylo_input(phy, context='phy')
+    child_counts = table(phy[['edge']][,1])
+    if (ape::is.rooted(phy)) {
+        return(any(child_counts > 2L))
     }
-    return(is_polytomy)
+    root_num = get_root_num(phy)
+    if (length(root_num) != 1L) {
+        stop('phy must have exactly one root node in contains_polytomy().')
+    }
+    node_nums = as.integer(names(child_counts))
+    underlying_degrees = as.integer(child_counts)
+    underlying_degrees[node_nums != root_num] =
+        underlying_degrees[node_nums != root_num] + 1L
+    any(underlying_degrees > 3L)
 }
 
 #' Compare descendant leaves at two nodes
@@ -1586,7 +1594,7 @@ force_ultrametric = function(tree, stop_if_larger_change=0.01, verbose=FALSE) {
             message('The tree is not ultrametric. Adjusting the branch length.')
         }
         edge_length_before = out_tree[['edge.length']]
-        if (all(table(out_tree[['edge']][,1]) == 2L)) {
+        if (ape::is.binary(out_tree)) {
             out_tree = ape::chronoMPL(out_tree)
         } else {
             num_tip = length(out_tree[['tip.label']])
@@ -1914,9 +1922,7 @@ table2phylo = function(df, name_col, dist_col) {
         Nnode=as.integer(num_internal),
         node.label=unname(names_by_id[internal_ids])
     )
-    if (!isTRUE(all.equal(root_dist, 0))) {
-        phy[['root.edge']] = as.numeric(root_dist)
-    }
+    phy[['root.edge']] = as.numeric(root_dist)
     class(phy) = 'phylo'
     phy = ape::reorder.phylo(phy, order='cladewise')
     if (length(phy[['tip.label']]) > 1L) {
