@@ -41,6 +41,10 @@ jobs:
             optional-packages: |-
               any::PhylogeneticEM
               any::Rphylopars
+          - os: ubuntu-latest
+            r-version: devel
+            force-suggests: "false"
+            optional-packages: ""
           - os: macos-latest
             r-version: release
             force-suggests: "false"
@@ -63,6 +67,8 @@ jobs:
         with:
           extra-packages: |
             any::rcmdcheck
+            any::covr
+            any::testthat
             ${{ matrix.optional-packages }}
           dependencies: '"hard"'
           needs: check

@@ -1,7 +1,4 @@
-# Title     : TODO
-# Objective : TODO
-# Created by: Codex
-# Created on: 2026-03-21
+# Shared species-label parsers.
 
 .normalize_species_parser_arg = function(value, arg_name='species_parser') {
     value = .normalize_single_string_arg(

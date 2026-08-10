@@ -1,12 +1,12 @@
 # Overview
 [![R-CMD-check](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml/badge.svg)](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml)
-[![Version](https://img.shields.io/badge/version-0.1.7-informational)](https://github.com/kfuku52/rkftools)
+[![Version](https://img.shields.io/badge/version-0.1.8-informational)](https://github.com/kfuku52/rkftools)
 [![R](https://img.shields.io/badge/R-%3E%3D%204.1.0-276DC3?logo=r)](https://www.r-project.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.md)
 [![Last commit](https://img.shields.io/github/last-commit/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/commits/master)
 [![GitHub issues](https://img.shields.io/github/issues/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/pulls)
-[![GitHub stars](https://img.shields.io/github/stars/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/kfuku52/rkftools)](https://github.com/kfuku52/rkftools)
 [![GitHub forks](https://img.shields.io/github/forks/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/network/members)
 
 This R package contains various tools to handle data in evolutionary biology.
@@ -97,7 +97,8 @@ candidate root branch is branch 7.
 caps automatic parallelism at eight cores, and avoids parallel overhead for
 small trees. Root-position species-overlap scoring now uses one bidirectional
 tree traversal, so its legacy `nslots` argument is accepted for compatibility
-but no worker pool is needed.
+but no worker pool is needed. `get_phy2_root_in_phy1()` likewise matches edge
+bipartitions in one traversal and retains `nslots` only for compatibility.
 
 To cap cores globally:
 ```r

@@ -1,8 +1,16 @@
-# Title     : TODO
-# Objective : TODO
-# Created by: kf
-# Created on: 5/19/18
+# Expression-profile utilities.
 
+#' Calculate expression-profile complementarity
+#'
+#' Compares two non-negative numeric profiles using weighted or independent
+#' relative differences.
+#'
+#' @param array1,array2 Equal-length finite, non-negative numeric vectors.
+#' @param method Either `"weighted"` or `"independent"`.
+#' @return A numeric complementarity score.
+#' @examples
+#' calc_complementarity(c(1, 2, 3), c(1, 2, 0))
+#' @export
 calc_complementarity = function(array1, array2, method='weighted') {
     # only works for positive values
     if (length(array1) != length(array2)) {

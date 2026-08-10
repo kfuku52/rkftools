@@ -1,7 +1,4 @@
-# Title     : TODO
-# Objective : TODO
-# Created by: kf
-# Created on: 3/22/18
+# Phylogenetic tree traversal, transformation, rooting, and conversion tools.
 
 # Naming convention for phylogenetic identifiers in this package:
 # * *_num is an ape::phylo node number. These are the integer node indices used
@@ -26,6 +23,50 @@
 #   phylo2table() generates numerical *_id values from clade signatures, matching
 #   genegalleon's numerical_label convention.
 
+.validate_phylo_input = function(
+    phy,
+    context='phy',
+    rooted=NULL,
+    binary=NULL,
+    require_lengths=FALSE,
+    finite_lengths=FALSE,
+    unique_tips=FALSE
+) {
+    if (!inherits(phy, 'phylo') || is.null(phy[['edge']]) ||
+            !is.matrix(phy[['edge']]) || ncol(phy[['edge']]) != 2L ||
+            !nrow(phy[['edge']])) {
+        stop(context, ' must be a non-empty object of class "phylo".')
+    }
+    if (is.null(phy[['tip.label']]) || !length(phy[['tip.label']])) {
+        stop(context, ' must contain at least one tip label.')
+    }
+    if (unique_tips && anyDuplicated(phy[['tip.label']])) {
+        stop(context, ' must contain unique tip labels.')
+    }
+    if (!is.null(rooted) && !identical(isTRUE(ape::is.rooted(phy)), rooted)) {
+        stop(context, if (rooted) ' must be rooted.' else ' must be unrooted.')
+    }
+    if (!is.null(binary) && !identical(isTRUE(ape::is.binary(phy)), binary)) {
+        stop(context, if (binary) ' must be binary.' else ' must be non-binary.')
+    }
+    if (require_lengths || finite_lengths) {
+        edge_lengths = phy[['edge.length']]
+        if (is.null(edge_lengths) || length(edge_lengths) != nrow(phy[['edge']])) {
+            stop(context, ' must contain one branch length per edge.')
+        }
+        if (finite_lengths && (anyNA(edge_lengths) || any(!is.finite(edge_lengths)))) {
+            stop(context, ' must contain only finite, non-missing branch lengths.')
+        }
+    }
+    invisible(TRUE)
+}
+
+#' Look up phylogenetic node numbers by label
+#'
+#' @param phy A `phylo` tree.
+#' @param node_name One or more tip or internal-node labels.
+#' @return An integer vector of matching node numbers.
+#' @export
 get_node_num_by_name = function(phy, node_name) {
     node_names = c(phy[['tip.label']], phy$node.label)
     out = integer(0)
@@ -38,11 +79,21 @@ get_node_num_by_name = function(phy, node_name) {
     return(out)
 }
 
+#' Look up phylogenetic node labels by number
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num One or more integer node numbers. Missing and out-of-range
+#'   values are ignored.
+#' @return A character vector of node labels.
+#' @export
 get_node_name_by_num = function(phy, node_num) {
     node_names = c(phy[['tip.label']], phy$node.label)
     out = character(0)
     max_node_num = length(node_names)
-    for (num in suppressWarnings(as.integer(node_num))) {
+    node_nums = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
+    for (num in node_nums) {
         if (is.na(num) || num < 1L || num > max_node_num) {
             next
         }
@@ -51,15 +102,32 @@ get_node_name_by_num = function(phy, node_num) {
     return(out)
 }
 
+#' Get the root node number
+#'
+#' @param phy A `phylo` tree.
+#' @return The integer root-node number, or multiple values for malformed trees.
+#' @examples
+#' tree <- ape::read.tree(text="((A:1,B:1):1,C:1);")
+#' get_root_num(tree)
+#' @export
 get_root_num = function(phy) {
     root_num = setdiff(phy[['edge']][,1], phy[['edge']][,2])
     return(root_num)
 }
 
+#' Get child node numbers
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num One or more integer node numbers.
+#' @return An integer vector of child node numbers.
+#' @export
 get_children_num = function(phy, node_num) {
     out = integer(0)
     max_node_num = max(phy[['edge']])
-    for (nn in suppressWarnings(as.integer(node_num))) {
+    node_nums = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
+    for (nn in node_nums) {
         if (is.na(nn) || nn < 1L || nn > max_node_num) {
             next
         }
@@ -68,13 +136,30 @@ get_children_num = function(phy, node_num) {
     return(out)
 }
 
+#' Test whether nodes are the root
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num One or more integer node numbers.
+#' @return A logical vector.
+#' @export
 is_root = function(phy, node_num) {
+    node_num = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
     root_num = get_root_num(phy)
     return(node_num==root_num)
 }
 
+#' Test whether a node is a leaf
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num A single integer node number.
+#' @return A single logical value.
+#' @export
 is_leaf = function(phy, node_num) {
-    node_num = suppressWarnings(as.integer(node_num))
+    node_num = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
     max_node_num = max(phy[['edge']])
     if (length(node_num) != 1L || is.na(node_num) || node_num < 1L || node_num > max_node_num) {
         return(FALSE)
@@ -82,6 +167,13 @@ is_leaf = function(phy, node_num) {
     return(node_num <= length(phy[['tip.label']]))
 } 
 
+#' Get descendant node numbers
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num One or more integer node numbers.
+#' @param leaf_only Whether to return only tip nodes.
+#' @return A sorted integer vector of descendants.
+#' @export
 get_descendent_num = function(phy, node_num, leaf_only=FALSE) {
     leaf_only = .normalize_single_logical_arg(
         value=leaf_only,
@@ -105,10 +197,19 @@ get_descendent_num = function(phy, node_num, leaf_only=FALSE) {
     return(descendent_nums)
 }
 
+#' Get parent node numbers
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num One or more integer node numbers.
+#' @return An integer vector of parent node numbers.
+#' @export
 get_parent_num = function(phy, node_num) {
     out = integer(0)
     max_node_num = max(phy[['edge']])
-    for (nn in suppressWarnings(as.integer(node_num))) {
+    node_nums = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
+    for (nn in node_nums) {
         if (is.na(nn) || nn < 1L || nn > max_node_num) {
             next
         }
@@ -117,10 +218,19 @@ get_parent_num = function(phy, node_num) {
     return(out)
 }
 
+#' Get sister node numbers
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num One or more integer node numbers.
+#' @return An integer vector of sibling node numbers.
+#' @export
 get_sister_num = function(phy, node_num) {
     out = integer(0)
     max_node_num = max(phy[['edge']])
-    for (nn in suppressWarnings(as.integer(node_num))) {
+    node_nums = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
+    for (nn in node_nums) {
         if (is.na(nn) || nn < 1L || nn > max_node_num) {
             next
         }
@@ -132,8 +242,16 @@ get_sister_num = function(phy, node_num) {
     return(out)
 }
 
+#' Get ancestor node numbers
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num A single integer node number.
+#' @return Ancestor node numbers ordered from parent to root.
+#' @export
 get_ancestor_num = function(phy, node_num) {
-    node_num = suppressWarnings(as.integer(node_num))
+    node_num = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
     max_node_num = max(phy[['edge']])
     if (length(node_num) != 1 || is.na(node_num) || node_num < 1 || node_num > max_node_num) {
         return(integer(0))
@@ -159,24 +277,50 @@ get_ancestor_num = function(phy, node_num) {
 }
 
 # alias
-collapse_short_external_edges = function(tree, threshold=1e-6) {
-    return(pad_short_edges(tree, threshold=threshold, external_only=TRUE))
+#' Pad short external edges
+#'
+#' Convenience wrapper around [pad_short_edges()] restricted to terminal edges.
+#'
+#' @param tree A binary `phylo` tree with branch lengths.
+#' @param threshold Finite non-negative minimum edge length.
+#' @param verbose Whether to emit progress messages.
+#' @return A modified `phylo` tree.
+#' @export
+collapse_short_external_edges = function(tree, threshold=1e-6, verbose=FALSE) {
+    return(pad_short_edges(
+        tree,
+        threshold=threshold,
+        external_only=TRUE,
+        verbose=verbose
+    ))
 }
 
-pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
+#' Pad short phylogenetic edges
+#'
+#' @param tree A binary `phylo` tree with branch lengths.
+#' @param threshold Finite non-negative minimum edge length.
+#' @param external_only Whether to modify only terminal edges.
+#' @param verbose Whether to emit progress messages.
+#' @return A modified `phylo` tree.
+#' @export
+pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE, verbose=FALSE) {
     external_only = .normalize_single_logical_arg(
         value=external_only,
         arg_name='external_only'
     )
-    threshold = suppressWarnings(as.numeric(threshold))
-    if (length(threshold) != 1L || is.na(threshold) || !is.finite(threshold) || threshold < 0) {
-        stop('threshold must be a single finite non-negative numeric value.')
-    }
+    verbose = .normalize_single_logical_arg(verbose, 'verbose')
+    threshold = .normalize_finite_numeric_scalar(
+        threshold, 'threshold', min_value=0
+    )
+    .validate_phylo_input(tree, context='tree', require_lengths=TRUE)
     if (!ape::is.binary(tree)) {
         stop('tree must be binary in pad_short_edges().')
     }
     if (is.null(tree[['edge.length']]) || length(tree[['edge.length']]) != nrow(tree[['edge']])) {
         stop('tree must contain one branch length per edge in pad_short_edges().')
+    }
+    if (any(!is.finite(tree[['edge.length']][!is.na(tree[['edge.length']])]))) {
+        stop('tree must not contain infinite branch lengths in pad_short_edges().')
     }
     out_tree = tree
     edge_idx = seq_len(nrow(out_tree$edge))
@@ -187,13 +331,17 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
     edge_lengths = out_tree[['edge.length']][is_target_edge]
     non_na_edge_lengths = edge_lengths[!is.na(edge_lengths)]
     min_eel = if (length(non_na_edge_lengths)) min(non_na_edge_lengths) else NA_real_
-    cat('Minimum edge length:', min_eel, '\n')
-    if (any(is.na(edge_lengths))) {
-        cat('NA edge lengths were ignored when searching short edges.\n')
+    if (verbose) {
+        message('Minimum edge length: ', min_eel)
+    }
+    if (verbose && any(is.na(edge_lengths))) {
+        message('NA edge lengths were ignored when searching short edges.')
     }
     is_short_eel = is_target_edge & (!is.na(out_tree$edge.length)) & (out_tree$edge.length < threshold)
     num_short_eel = sum(is_short_eel)
-    cat('Number of short edges ( length <', threshold, '):', num_short_eel, '\n')
+    if (verbose) {
+        message('Number of short edges (length < ', threshold, '): ', num_short_eel)
+    }
     if (num_short_eel>0) {
         short_eel_idx = edge_idx[is_short_eel]
         for (i in short_eel_idx) {
@@ -225,9 +373,14 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
                 out_tree$edge.length[i] = out_tree$edge.length[i] +shift_value
                 out_tree$edge.length[sister_edge_idx] = out_tree$edge.length[sister_edge_idx] + shift_value
                 if (flag_root) {
-                    cat('Adding branch length to subroot edges,', i, 'and', sister_edge_idx, '\n')
+                    if (verbose) {
+                        message('Adding branch length to subroot edges ', i, ' and ', sister_edge_idx, '.')
+                    }
                 } else {
-                    cat('Transfering branch length from edge', parent_edge_idx, 'to', i, 'and', sister_edge_idx, '\n')
+                    if (verbose) {
+                        message('Transferring branch length from edge ', parent_edge_idx,
+                            ' to ', i, ' and ', sister_edge_idx, '.')
+                    }
                     out_tree$edge.length[parent_edge_idx] = out_tree$edge.length[parent_edge_idx] - shift_value
                 }
             }
@@ -236,9 +389,18 @@ pad_short_edges = function(tree, threshold=1e-6, external_only=FALSE) {
     return(out_tree)
 }
 
+#' Get tip labels below nodes
+#'
+#' @param phy A `phylo` tree.
+#' @param node_num One or more integer node numbers.
+#' @param out Optional character values to prepend for compatibility.
+#' @return A character vector of descendant tip labels.
+#' @export
 get_tip_labels = function(phy, node_num, out=NULL) {
     num_leaf = length(phy[['tip.label']])
-    node_nums = suppressWarnings(as.integer(node_num))
+    node_nums = .normalize_integerish(
+        node_num, 'node_num', allow_na=TRUE, allow_empty=TRUE
+    )
     max_node_num = max(phy[['edge']])
     invalid_node_nums = node_nums[!is.na(node_nums) & (node_nums > max_node_num)]
     if (length(invalid_node_nums)) {
@@ -267,6 +429,14 @@ get_tip_labels = function(phy, node_num, out=NULL) {
     return(tip_labels)
 }
 
+#' Find nearest subject tips
+#'
+#' @param phy A `phylo` tree.
+#' @param query A single tip label.
+#' @param subjects Candidate tip labels.
+#' @param mrca_matrix A named matrix returned by `ape::mrca()`.
+#' @return A list containing nearest tips and their MRCA.
+#' @export
 get_nearest_tips = function(phy, query, subjects, mrca_matrix) {
     query = .normalize_single_string_arg(
         value=query,
@@ -306,11 +476,17 @@ get_nearest_tips = function(phy, query, subjects, mrca_matrix) {
     return(list(nearests=nearest_tips, mrca=nearest_mrca))
 }
 
+#' Get the age of a node in an ultrametric tree
+#'
+#' @param phy An ultrametric `phylo` tree.
+#' @param node_num A single integer node number.
+#' @return Numeric time from the node to its descendant tips.
+#' @export
 get_node_age = function(phy, node_num) {
     if (!ape::is.ultrametric(phy)) {
         stop('phy must be ultrametric in get_node_age().')
     }
-    node_num = suppressWarnings(as.integer(node_num))
+    node_num = .normalize_integerish(node_num, 'node_num')
     max_node_num = max(phy[['edge']])
     if (length(node_num) != 1 || is.na(node_num) || node_num < 1 || node_num > max_node_num) {
         stop('node_num must be a single integer in [1, ', max_node_num, '] in get_node_age().')
@@ -328,6 +504,11 @@ get_node_age = function(phy, node_num) {
     return(age)
 }
 
+#' Get the smallest root-child clade
+#'
+#' @param phy A rooted `phylo` tree.
+#' @return Tip labels in the smallest root-child clade.
+#' @export
 get_outgroup = function(phy) {
     if (!ape::is.rooted(phy)) {
         stop('phy is unrooted. get_outgroup() requires a rooted tree.')
@@ -350,6 +531,11 @@ get_outgroup = function(phy) {
     return(outgroup_labels)
 }
 
+#' Compare root splits between trees
+#'
+#' @param phy1,phy2 Rooted `phylo` trees containing the same tips.
+#' @return A single logical value.
+#' @export
 is_same_root = function(phy1, phy2) {
     if (! ape::is.rooted(phy1)) {
         stop('phy1 is unrooted.')
@@ -383,84 +569,53 @@ is_same_root = function(phy1, phy2) {
     return(identical(sig1, sig2))
 }
 
+#' Locate one tree's root split in another tree
+#'
+#' Computes all edge bipartitions in one traversal rather than repeatedly
+#' rerooting `phy1`.
+#'
+#' @param phy1 A `phylo` tree in which to locate the split.
+#' @param phy2 A rooted binary `phylo` tree providing the target root split.
+#' @param nslots Legacy worker-count argument; accepted but no workers are used.
+#' @param mode Return `"node_num"` or edge `"index"`.
+#' @return An integer node number or edge index, or `NA` when unmatched.
+#' @export
 get_phy2_root_in_phy1 = function(phy1, phy2, nslots=NULL, mode=c("node_num", "index")) {
     mode_name = match.arg(mode)
-    num_slots = .resolve_parallel_cores(
-        requested=nslots,
-        max_tasks=nrow(phy1[['edge']]),
-        auto_when_missing=FALSE
+    .validate_phylo_input(phy1, context='phy1', unique_tips=TRUE)
+    .validate_phylo_input(
+        phy2, context='phy2', rooted=TRUE, binary=TRUE, unique_tips=TRUE
     )
-    if (! ape::is.rooted(phy2)) {
-        stop('phy2 is unrooted.')
+    # nslots is retained for API compatibility. Root matching is now a single
+    # traversal and does not benefit from a worker pool.
+    if (!is.null(nslots)) {
+        .resolve_parallel_cores(
+            requested=nslots,
+            max_tasks=nrow(phy1[['edge']]),
+            auto_when_missing=FALSE
+        )
     }
     if (! identical(sort(phy1$tip.label), sort(phy2$tip.label))) {
         stop('phy1 and phy2 have different sets of leaves.')
     }
 
-    get_root_num_local = function(phy_obj) {
-        setdiff(phy_obj[['edge']][,1], phy_obj[['edge']][,2])
-    }
-    get_children_num_local = function(phy_obj, node_num) {
-        phy_obj[['edge']][(phy_obj[['edge']][,1]==node_num),2]
-    }
-    get_tip_labels_local = function(phy_obj, node_num) {
-        num_leaf = length(phy_obj[['tip.label']])
-        if (node_num > num_leaf) {
-            return(ape::extract.clade(phy_obj, node_num)$tip.label)
-        }
-        phy_obj[['tip.label']][node_num]
-    }
-    get_root_split = function(phy_obj) {
-        root_num = get_root_num_local(phy_obj)
-        children = get_children_num_local(phy_obj, root_num)
-        sort(get_tip_labels_local(phy_obj, children[1]))
-    }
-
-    all_tips_sorted = sort(phy1$tip.label)
-    ref_root_split = get_root_split(phy2)
-    is_matching_root = function(i, phy_obj, ref_split, all_tips) {
-        rerooted = phytools::reroot(tree=phy_obj, node.number=phy_obj$edge[i,2])
-        split_a = get_root_split(rerooted)
-        if (identical(split_a, ref_split)) {
+    phy2_root = get_root_num(phy2)
+    phy2_root_children = get_children_num(phy2, phy2_root)
+    reference_tips = get_tip_labels(phy2, phy2_root_children[[1]])
+    reference_signature = .encode_tip_signature(reference_tips)
+    all_tips = as.character(phy1[['tip.label']])
+    tip_sets = .get_node_tip_sets(phy1)
+    child_nodes = phy1[['edge']][,2]
+    is_match = vapply(child_nodes, function(child_node) {
+        side_a = as.character(tip_sets[[child_node]])
+        if (identical(.encode_tip_signature(side_a), reference_signature)) {
             return(TRUE)
         }
-        split_b = sort(setdiff(all_tips, split_a))
-        identical(split_b, ref_split)
-    }
-
-    edge_indices = seq_len(nrow(phy1$edge))
-    matched_index = NA_integer_
-    if (num_slots == 1L || length(edge_indices) <= 1L) {
-        for (i in edge_indices) {
-            if (is_matching_root(i, phy_obj=phy1, ref_split=ref_root_split, all_tips=all_tips_sorted)) {
-                matched_index = i
-                break
-            }
-        }
-    } else {
-        num_slots = min(num_slots, length(edge_indices))
-        if (.Platform$OS.type != 'windows') {
-            is_match = unlist(parallel::mclapply(
-                X=edge_indices,
-                FUN=is_matching_root,
-                phy_obj=phy1,
-                ref_split=ref_root_split,
-                all_tips=all_tips_sorted,
-                mc.cores=num_slots
-            ), use.names=FALSE)
-        } else {
-            cl = parallel::makeCluster(num_slots)
-            on.exit(parallel::stopCluster(cl), add=TRUE)
-            is_match = unlist(parallel::parLapply(
-                cl=cl, X=edge_indices, fun=is_matching_root,
-                phy_obj=phy1, ref_split=ref_root_split, all_tips=all_tips_sorted
-            ), use.names=FALSE)
-        }
-        hit = which(is_match)[1]
-        if (length(hit) && !is.na(hit)) {
-            matched_index = edge_indices[hit]
-        }
-    }
+        side_b = setdiff(all_tips, side_a)
+        identical(.encode_tip_signature(side_b), reference_signature)
+    }, logical(1))
+    matched_indices = which(is_match)
+    matched_index = if (length(matched_indices)) matched_indices[[1]] else NA_integer_
 
     if (is.na(matched_index)) {
         return(NA)
@@ -473,6 +628,13 @@ get_phy2_root_in_phy1 = function(phy1, phy2, nslots=NULL, mode=c("node_num", "in
     return(root_pos)
 }
 
+#' Root a tree at a scored MAD edge
+#'
+#' @param t A `phylo` tree.
+#' @param madr A single edge index.
+#' @param rho Root position proportions, one per edge.
+#' @return A list containing Newick text, the rooted tree, and clock CV.
+#' @export
 get_rooted_newick = function(t, madr, rho) {
     madr_numeric = suppressWarnings(as.numeric(madr))
     if (length(madr_numeric) != 1 || is.na(madr_numeric) || !is.finite(madr_numeric) ||
@@ -740,6 +902,12 @@ get_rooted_newick = function(t, madr, rho) {
     return(.format_mad_result(t=t, rho=scores[['rho']], bad=scores[['bad']], output_mode=output_mode))
 }
 
+#' Root a tree using minimal ancestor deviation
+#'
+#' @param unrooted_newick A Newick string or `phylo` tree.
+#' @param output_mode One of `"newick"`, `"stats"`, `"full"`, or `"custom"`.
+#' @return Newick text or a list whose detail depends on `output_mode`.
+#' @export
 MAD <- function(unrooted_newick,output_mode){
     # this function was modified from the original MAD function from:
     # https://www.mikrobio.uni-kiel.de/de/ag-dagan/ressourcen
@@ -768,6 +936,14 @@ MAD <- function(unrooted_newick,output_mode){
     ))
 }
 
+#' Root a tree using parallel minimal ancestor deviation
+#'
+#' @param unrooted_newick A Newick string or `phylo` tree.
+#' @param output_mode One of `"newick"`, `"stats"`, `"full"`, or `"custom"`.
+#' @param ncpu Requested worker count. Automatic parallelism is capped by
+#'   `options("rkftools.max_cores")` and skipped for small trees.
+#' @return Newick text or a list whose detail depends on `output_mode`.
+#' @export
 MAD_parallel = function(unrooted_newick, output_mode, ncpu=NULL) {
     mode = if (missing(output_mode)) NULL else output_mode
     if (!is.null(mode)) {
@@ -794,6 +970,12 @@ MAD_parallel = function(unrooted_newick, output_mode, ncpu=NULL) {
     ))
 }
 
+#' Transfer internal-node labels between congruent trees
+#'
+#' @param phy_from A labeled `phylo` tree.
+#' @param phy_to A `phylo` tree with the same tips.
+#' @return `phy_to` with labels transferred by clade signature.
+#' @export
 transfer_node_labels = function(phy_from, phy_to) {
     out_phy_to = phy_to
     if (!setequal(phy_from$tip.label, out_phy_to$tip.label)) {
@@ -841,6 +1023,16 @@ transfer_node_labels = function(phy_from, phy_to) {
     return(out_phy_to)
 }
 
+#' Parse species names from labels
+#'
+#' @param a One or more labels.
+#' @param species_parser Species-label convention.
+#' @param sep Literal input separator.
+#' @return Species names separated by spaces.
+#' @examples
+#' get_species_name("Homo_sapiens_gene1")
+#' get_species_name("Genus_cf_species_gene1", species_parser="taxonomic")
+#' @export
 get_species_name = function(a, species_parser='legacy', sep='_') {
     species_parser = .normalize_species_parser_arg(
         value=species_parser,
@@ -862,6 +1054,13 @@ get_species_name = function(a, species_parser='legacy', sep='_') {
     return(parsed[['species_labels']])
 }
 
+#' Parse species names from tree tips
+#'
+#' @param phy A `phylo` tree.
+#' @param sep Literal input and output separator.
+#' @param species_parser Species-label convention.
+#' @return A character vector aligned with tree tips.
+#' @export
 get_species_names = function(phy, sep='_', species_parser='legacy') {
     sep = .normalize_single_string_arg(
         value=sep,
@@ -883,18 +1082,23 @@ get_species_names = function(phy, sep='_', species_parser='legacy') {
     species_names = parsed[['species_labels']]
     if (any(!parsed[['parsed_ok']])) {
         bad_labels = phy[['tip.label']][!parsed[['parsed_ok']]]
-        for (i in seq_along(bad_labels)) {
-            warning(
-                'leaf name could not be interpreted with species_parser="',
-                species_parser,
-                '": ',
-                bad_labels[[i]]
-            )
-        }
+        warning(
+            'Leaf name(s) could not be interpreted with species_parser="',
+            species_parser, '": ', paste(bad_labels, collapse=', '),
+            call.=FALSE
+        )
     }
     return(species_names)
 }
 
+#' Convert gene-bearing leaf labels to species names
+#'
+#' @param leaf_names Gene-bearing leaf labels.
+#' @param use_underbar Whether output species names retain underscores.
+#' @param species_parser Species-label convention.
+#' @param sep Literal input separator.
+#' @return Parsed species names, with `NA` for malformed labels.
+#' @export
 leaf2species = function(leaf_names, use_underbar=FALSE, species_parser='legacy', sep='_') {
     use_underbar = .normalize_single_logical_arg(
         value=use_underbar,
@@ -920,19 +1124,20 @@ leaf2species = function(leaf_names, use_underbar=FALSE, species_parser='legacy',
     species_names = parsed[['species_labels']]
     if (any(!parsed[['parsed_ok']])) {
         bad_labels = leaf_names[!parsed[['parsed_ok']]]
-        for (i in seq_along(bad_labels)) {
-            warning(
-                'leaf name could not be interpreted as a species-bearing label with species_parser="',
-                species_parser,
-                '": ',
-                bad_labels[[i]],
-                '\n'
-            )
-        }
+        warning(
+            'Leaf name(s) could not be interpreted as species-bearing labels with species_parser="',
+            species_parser, '": ', paste(bad_labels, collapse=', '),
+            call.=FALSE
+        )
     }
     return(species_names)
 }
 
+#' Test whether a tree contains a polytomy
+#'
+#' @param phy A `phylo` tree.
+#' @return A single logical value.
+#' @export
 contains_polytomy = function(phy) {
     if (max(table(phy[['edge']][,1]))>2) {
         is_polytomy = TRUE
@@ -942,6 +1147,12 @@ contains_polytomy = function(phy) {
     return(is_polytomy)
 }
 
+#' Compare descendant leaves at two nodes
+#'
+#' @param phy1,phy2 `phylo` trees with identical tip-label multisets.
+#' @param phy1_node,phy2_node Integer node numbers to compare.
+#' @return A single logical value.
+#' @export
 has_same_leaves = function(phy1, phy1_node, phy2, phy2_node) {
     if (!identical(sort(phy1$tip.label), sort(phy2$tip.label))) {
         stop('phy1 and phy2 must contain identical tip-label multisets.')
@@ -952,7 +1163,15 @@ has_same_leaves = function(phy1, phy1_node, phy2, phy2_node) {
     return(is_same_leaves)
 }
 
-multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
+#' Map polytomy nodes to a binary resolution
+#'
+#' @param multifurcated_tree A multifurcating `phylo` tree.
+#' @param bifurcated_tree A binary resolution with identical ordered tips.
+#' @param verbose Whether to emit progress messages.
+#' @return A data frame mapping multifurcated to binary node numbers.
+#' @export
+multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree, verbose=FALSE) {
+    verbose = .normalize_single_logical_arg(verbose, 'verbose')
     mtree = multifurcated_tree
     btree = bifurcated_tree
     if (!identical(mtree[['tip.label']], btree[['tip.label']])) {
@@ -970,7 +1189,9 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
     if (!length(polytomy_parents)) {
         return(data.frame(mtree_node=integer(0), btree_node=integer(0)))
     }
-    cat('Polytomy parent nodes:', polytomy_parents, '\n')
+    if (verbose) {
+        message('Polytomy parent nodes: ', paste(polytomy_parents, collapse=', '))
+    }
     df = data.frame()
     for (mtree_pp in polytomy_parents) {
         mtree_pp_leaves = sort(get_tip_labels(mtree, mtree_pp))
@@ -997,51 +1218,73 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
     paste0(nchar(tip_labels), ':', tip_labels, collapse='|')
 }
 
-.get_node_tip_sets = function(phy) {
-    if (!inherits(phy, 'phylo') || is.null(phy[['edge']]) || !nrow(phy[['edge']])) {
-        stop('phy must be a non-empty object of class "phylo".')
+.build_phy_index = function(phy, context='phy') {
+    .validate_phylo_input(phy, context=context)
+    edge = phy[['edge']]
+    node_nums = sort(unique(as.integer(c(edge))))
+    max_node = max(node_nums)
+    if (!identical(node_nums, seq_len(max_node))) {
+        stop(context, ' must use contiguous node numbers from 1 to ', max_node, '.')
     }
-    num_tip = length(phy[['tip.label']])
-    max_node = max(phy[['edge']])
-    children_by_parent = split(phy[['edge']][,2], phy[['edge']][,1])
-    tip_cache = vector('list', max_node)
-    for (tip_num in seq_len(num_tip)) {
-        tip_cache[[tip_num]] = phy[['tip.label']][[tip_num]]
-    }
-    root_num = get_root_num(phy)
+    root_num = setdiff(edge[,1], edge[,2])
     if (length(root_num) != 1L) {
-        stop('Invalid phylo topology while computing clade signatures.')
+        stop(context, ' must have exactly one root node.')
     }
-    traversal_order = integer(max_node)
-    traversal_order[[1]] = root_num
+    children_by_parent = split(edge[,2], edge[,1])
+    parent_by_child = stats::setNames(edge[,1], edge[,2])
+    preorder = integer(max_node)
+    preorder[[1]] = root_num
     queue_size = 1L
     next_index = 1L
+    visited = logical(max_node)
+    visited[[root_num]] = TRUE
     while (next_index <= queue_size) {
-        children = children_by_parent[[as.character(traversal_order[[next_index]])]]
+        children = children_by_parent[[as.character(preorder[[next_index]])]]
         if (length(children)) {
+            if (any(visited[children])) {
+                stop(context, ' contains a cyclic or multiply-parented topology.')
+            }
+            visited[children] = TRUE
             target_indices = queue_size + seq_along(children)
-            traversal_order[target_indices] = children
+            preorder[target_indices] = children
             queue_size = queue_size + length(children)
         }
         next_index = next_index + 1L
     }
-    traversal_order = traversal_order[seq_len(queue_size)]
-    if (queue_size != max_node || anyDuplicated(traversal_order) ||
-            !setequal(traversal_order, seq_len(max_node))) {
-        stop('Invalid or disconnected phylo topology while computing clade signatures.')
+    preorder = preorder[seq_len(queue_size)]
+    if (queue_size != max_node || !all(visited)) {
+        stop(context, ' contains a disconnected topology.')
     }
-    for (node_num in rev(traversal_order)) {
+    list(
+        root=as.integer(root_num),
+        children=children_by_parent,
+        parent=parent_by_child,
+        preorder=preorder,
+        postorder=rev(preorder),
+        num_tip=length(phy[['tip.label']]),
+        max_node=max_node
+    )
+}
+
+.get_node_tip_sets = function(phy) {
+    index = .build_phy_index(phy)
+    num_tip = index[['num_tip']]
+    tip_cache = vector('list', index[['max_node']])
+    for (tip_num in seq_len(num_tip)) {
+        tip_cache[[tip_num]] = phy[['tip.label']][[tip_num]]
+    }
+    for (node_num in index[['postorder']]) {
         if (node_num <= num_tip) {
             next
         }
-        children = children_by_parent[[as.character(node_num)]]
+        children = index[['children']][[as.character(node_num)]]
         if (is.null(children) || !length(children) || any(vapply(
                 tip_cache[children], is.null, logical(1)))) {
             stop('Invalid phylo topology while computing clade signatures.')
         }
         tip_cache[[node_num]] = sort(unique(unlist(tip_cache[children], use.names=FALSE)))
     }
-    names(tip_cache) = as.character(seq_len(max_node))
+    names(tip_cache) = as.character(seq_len(index[['max_node']]))
     tip_cache
 }
 
@@ -1052,13 +1295,24 @@ multi2bi_node_number_transfer = function(multifurcated_tree, bifurcated_tree) {
     signatures
 }
 
-collapse_short_branches = function(tree, tol=1e-8) {
-    tol = suppressWarnings(as.numeric(tol))
-    if (length(tol) != 1L || is.na(tol) || !is.finite(tol) || tol < 0) {
-        stop('tol must be a single finite non-negative numeric value.')
-    }
+#' Collapse extremely short internal branches
+#'
+#' @param tree A `phylo` tree with branch lengths and unique tips.
+#' @param tol Finite non-negative collapse tolerance.
+#' @param verbose Whether to emit progress messages.
+#' @return A modified `phylo` tree with unaffected edge lengths restored.
+#' @export
+collapse_short_branches = function(tree, tol=1e-8, verbose=FALSE) {
+    verbose = .normalize_single_logical_arg(verbose, 'verbose')
+    tol = .normalize_finite_numeric_scalar(tol, 'tol', min_value=0)
+    .validate_phylo_input(
+        tree, context='tree', require_lengths=TRUE, unique_tips=TRUE
+    )
     if (is.null(tree[['edge.length']]) || length(tree[['edge.length']]) != nrow(tree[['edge']])) {
         stop('tree must contain one branch length per edge in collapse_short_branches().')
+    }
+    if (any(!is.finite(tree[['edge.length']][!is.na(tree[['edge.length']])]))) {
+        stop('tree must not contain infinite branch lengths in collapse_short_branches().')
     }
     if (anyDuplicated(tree[['tip.label']])) {
         stop('tree must have unique tip labels in collapse_short_branches().')
@@ -1068,11 +1322,13 @@ collapse_short_branches = function(tree, tol=1e-8) {
     num_tip = length(out_tree[['tip.label']])
     is_internal_edge = out_tree[['edge']][,2] > num_tip
     is_short_edge = is_internal_edge & !is.na(edge_lengths) & (abs(edge_lengths) < tol)
-    if (any(is.na(edge_lengths))) {
-        cat('NA edge lengths were ignored when searching extremely short internal branches.\n')
+    if (verbose && any(is.na(edge_lengths))) {
+        message('NA edge lengths were ignored when searching extremely short internal branches.')
     }
     if (!any(is_short_edge)) {
-        cat('No extremely short internal branch was detected. tol =', tol, '\n')
+        if (verbose) {
+            message('No extremely short internal branch was detected. tol = ', tol)
+        }
         return(out_tree)
     }
 
@@ -1086,10 +1342,12 @@ collapse_short_branches = function(tree, tol=1e-8) {
         !is.na(edge_lengths) & edge_lengths <= tol
     working_tree[['edge.length']][protected_internal] = max(1, tol * 2)
     working_tree[['edge.length']][is_short_edge] = 0
-    cat(
-        'Extremely short internal branches ( n =', sum(is_short_edge),
-        ') were collapsed. tol =', tol, '\n'
-    )
+    if (verbose) {
+        message(
+            'Extremely short internal branches (n = ', sum(is_short_edge),
+            ') were collapsed. tol = ', tol
+        )
+    }
     collapsed = ape::di2multi(working_tree, tol=tol)
     collapsed_signatures = .get_node_tip_signatures(collapsed)
     child_signatures = collapsed_signatures[as.character(collapsed[['edge']][,2])]
@@ -1102,28 +1360,44 @@ collapse_short_branches = function(tree, tol=1e-8) {
     collapsed
 }
 
-force_ultrametric = function(tree, stop_if_larger_change=0.01) {
+#' Adjust a tree to be ultrametric
+#'
+#' @param tree A `phylo` tree with finite branch lengths.
+#' @param stop_if_larger_change Maximum fractional total adjustment.
+#' @param verbose Whether to emit progress messages.
+#' @return An ultrametric `phylo` tree.
+#' @export
+force_ultrametric = function(tree, stop_if_larger_change=0.01, verbose=FALSE) {
     out_tree = tree
-    stop_if_larger_change = suppressWarnings(as.numeric(stop_if_larger_change))
-    if (length(stop_if_larger_change) != 1L || is.na(stop_if_larger_change) ||
-            !is.finite(stop_if_larger_change) || stop_if_larger_change < 0) {
-        stop('stop_if_larger_change must be a single finite non-negative numeric value.')
-    }
+    verbose = .normalize_single_logical_arg(verbose, 'verbose')
+    stop_if_larger_change = .normalize_finite_numeric_scalar(
+        stop_if_larger_change, 'stop_if_larger_change', min_value=0
+    )
+    .validate_phylo_input(out_tree, context='tree', require_lengths=TRUE)
     if (is.null(out_tree[['edge.length']]) || length(out_tree[['edge.length']]) != nrow(out_tree[['edge']])) {
         stop('tree must contain one branch length per edge in force_ultrametric().')
     }
     if (any(is.na(out_tree[['edge.length']]))) {
         stop('tree contains NA edge lengths. Please resolve NA values before force_ultrametric().')
     }
+    if (any(!is.finite(out_tree[['edge.length']]))) {
+        stop('tree contains non-finite edge lengths. Please resolve them before force_ultrametric().')
+    }
     if (ape::is.ultrametric(out_tree)) {
-        cat('The tree is ultrametric.\n')
+        if (verbose) {
+            message('The tree is ultrametric.')
+        }
     } else {
-        cat('The tree is not ultrametric. Adjusting the branch length.\n')
+        if (verbose) {
+            message('The tree is not ultrametric. Adjusting the branch length.')
+        }
         edge_length_before = out_tree[['edge.length']]
         out_tree = ape::chronoMPL(out_tree)
         edge_length_after = out_tree[['edge.length']]
         sum_adjustment = sum(abs(edge_length_after-edge_length_before))
-        cat('Total branch length difference between before- and after-adjustment:', sum_adjustment, '\n')
+        if (verbose) {
+            message('Total branch length difference: ', sum_adjustment)
+        }
         allowed_adjustment = sum(abs(out_tree[['edge.length']])) * stop_if_larger_change
         if (!(sum_adjustment < allowed_adjustment)) {
             stop(
@@ -1135,14 +1409,17 @@ force_ultrametric = function(tree, stop_if_larger_change=0.01) {
     return(out_tree)
 }
 
+#' Construct a one-tip tree
+#'
+#' @param name A single non-empty tip label.
+#' @param dist A finite branch length.
+#' @return A one-tip `phylo` tree.
+#' @export
 get_single_branch_tree = function(name, dist) {
     if (length(name) != 1 || is.na(name) || trimws(as.character(name)) == '') {
         stop('name must be a single non-empty tip label in get_single_branch_tree().')
     }
-    dist_num = suppressWarnings(as.numeric(dist))
-    if (length(dist_num) != 1 || is.na(dist_num)) {
-        stop('dist must be a single numeric branch length in get_single_branch_tree().')
-    }
+    dist_num = .normalize_finite_numeric_scalar(dist, 'dist')
     phy = list(
       edge = matrix(c(2,1),1,2),
       tip.label = as.character(name),
@@ -1153,6 +1430,11 @@ get_single_branch_tree = function(name, dist) {
     return(phy)
 }
 
+#' Collapse redundant singleton root edges
+#'
+#' @param phy A `phylo` tree.
+#' @return A `phylo` tree with singleton nodes collapsed where applicable.
+#' @export
 remove_redundant_root_edge = function(phy) {
     if (is.null(phy[['tip.label']]) || length(phy[['tip.label']]) <= 1) {
         return(phy)
@@ -1325,6 +1607,23 @@ remove_redundant_root_edge = function(phy) {
     invisible(children_by_parent)
 }
 
+#' Convert a branch table to a phylogenetic tree
+#'
+#' The table must describe one connected rooted tree. `branch_id`, `parent`,
+#' and `sister` are identifiers; `-999`, blank, or missing values denote root
+#' and missing-sister sentinels. Unary and binary nodes are supported.
+#'
+#' @param df A non-empty branch data frame.
+#' @param name_col Name of the node-label column.
+#' @param dist_col Name of the finite branch-length column.
+#' @return A rooted `phylo` tree. Root-row distance is stored as `root.edge`.
+#' @examples
+#' tab <- data.frame(
+#'     branch_id=c(2, 0, 1), parent=c(-999, 2, 2), sister=c(-999, 1, 0),
+#'     label=c("Root", "A", "B"), dist=c(0, 0.5, 0.75)
+#' )
+#' table2phylo(tab, "label", "dist")
+#' @export
 table2phylo = function(df, name_col, dist_col) {
     name_col = .normalize_single_string_arg(name_col, 'name_col', allow_empty=FALSE)
     dist_col = .normalize_single_string_arg(dist_col, 'dist_col', allow_empty=FALSE)
@@ -1404,6 +1703,9 @@ table2phylo = function(df, name_col, dist_col) {
         Nnode=as.integer(num_internal),
         node.label=unname(names_by_id[internal_ids])
     )
+    if (!isTRUE(all.equal(root_dist, 0))) {
+        phy[['root.edge']] = as.numeric(root_dist)
+    }
     class(phy) = 'phylo'
     phy = ape::reorder.phylo(phy, order='cladewise')
     if (length(phy[['tip.label']]) > 1L) {
@@ -1459,10 +1761,29 @@ table2phylo = function(df, name_col, dist_col) {
     branch_ids
 }
 
+#' Convert a phylogenetic tree to a branch table
+#'
+#' Supports rooted trees with unary or binary internal nodes and assigns stable
+#' branch identifiers from clade signatures.
+#'
+#' @param phy A rooted `phylo` tree with finite branch lengths and unique tips.
+#' @param name_col Output node-label column name.
+#' @param dist_col Output branch-length column name.
+#' @return A branch data frame with `branch_id`, `parent`, `sister`, labels,
+#'   and distances.
+#' @examples
+#' tree <- ape::read.tree(text="((A:1,B:1):1,C:1);")
+#' phylo2table(tree)
+#' @export
 phylo2table = function(phy, name_col='label', dist_col='dist') {
-    if (!inherits(phy, 'phylo')) {
-        stop('phy must be an object of class "phylo".')
-    }
+    .validate_phylo_input(
+        phy,
+        context='phy',
+        rooted=TRUE,
+        require_lengths=TRUE,
+        finite_lengths=TRUE,
+        unique_tips=TRUE
+    )
     name_col = .normalize_single_string_arg(
         value=name_col,
         arg_name='name_col',
@@ -1480,17 +1801,11 @@ phylo2table = function(phy, name_col='label', dist_col='dist') {
     if (dist_col %in% c(reserved_cols, name_col)) {
         stop('dist_col must not duplicate branch_id, parent, sister, or name_col.')
     }
-    if (is.null(phy[['edge']]) || nrow(phy[['edge']]) == 0) {
-        stop('phylo2table() requires a tree with at least one edge.')
-    }
-    if (!ape::is.rooted(phy)) {
-        stop('phylo2table() requires a rooted tree.')
-    }
-    if (anyDuplicated(phy[['tip.label']])) {
-        stop('phylo2table() requires unique tip labels.')
-    }
-    if (is.null(phy[['edge.length']]) || length(phy[['edge.length']]) != nrow(phy[['edge']])) {
-        stop('phylo2table() requires branch lengths for all edges.')
+    root_edge = phy[['root.edge']]
+    if (is.null(root_edge)) {
+        root_edge = 0
+    } else {
+        root_edge = .normalize_finite_numeric_scalar(root_edge, 'phy$root.edge')
     }
 
     num_tip = length(phy[['tip.label']])
@@ -1554,11 +1869,11 @@ phylo2table = function(phy, name_col='label', dist_col='dist') {
         if (node_num == root_num) {
             parent_id = -999L
             sister_id = -999L
-            branch_dist = 0
+            branch_dist = root_edge
         } else {
             parent_num = as.integer(parent_num_by_child_num[as.character(node_num)])
             sister_nums = setdiff(as.integer(child_nums_by_parent_num[[as.character(parent_num)]]), node_num)
-            if (length(sister_nums) == 0 && parent_num == root_num) {
+            if (length(sister_nums) == 0) {
                 sister_id = -999L
             } else if (length(sister_nums) == 1) {
                 sister_id = unname(branch_id_by_node_num[as.character(sister_nums)])
@@ -1585,8 +1900,15 @@ phylo2table = function(phy, name_col='label', dist_col='dist') {
     return(out_table)
 }
 
-fill_node_labels = function(phy) {
+#' Fill missing internal-node labels
+#'
+#' @param phy A `phylo` tree.
+#' @param verbose Whether to emit a progress message.
+#' @return A `phylo` tree with unique generated labels for missing nodes.
+#' @export
+fill_node_labels = function(phy, verbose=FALSE) {
     out_phy = phy
+    verbose = .normalize_single_logical_arg(verbose, 'verbose')
     num_internal = as.integer(out_phy[['Nnode']])
     if (length(num_internal) != 1 || is.na(num_internal) || num_internal < 0) {
         num_internal = max(out_phy[['edge']]) - length(out_phy[['tip.label']])
@@ -1607,7 +1929,9 @@ fill_node_labels = function(phy) {
         return(out_phy)
     }
     missing_index = (seq_along(nl))[is_missing]
-    cat('Filling', length(missing_index), 'node names.\n')
+    if (verbose) {
+        message('Filling ', length(missing_index), ' node names.')
+    }
     counter = 0
     for (i in missing_index) {
         lab = paste0('n', counter)

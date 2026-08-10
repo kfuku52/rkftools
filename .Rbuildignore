@@ -7,3 +7,5 @@
 ^\.github$
 ^\.github/
 ^LICENSE\.md$
+^AGENTS\.md$
+^Makefile$

@@ -1,9 +1,26 @@
-# Title     : TODO
-# Objective : TODO
-# Created by: kef74yk
-# Created on: 2019-01-02
+# Gene-tree reconciliation and NOTUNG parsing utilities.
 
+#' Calculate a duplication confidence score
+#'
+#' @param phy A `phylo` tree with unique tip labels.
+#' @param node_num A single integer internal-node number.
+#' @param species_parser Species-label convention: `"legacy"` or
+#'   `"taxonomic"`.
+#' @param sep Literal separator in gene labels.
+#' @return The Jaccard overlap of species below the two child clades, or `NA`
+#'   for a non-binary node.
+#' @export
 get_duplication_confidence_score = function(phy, node_num, species_parser='legacy', sep='_') {
+    .validate_phylo_input(phy, context='phy', unique_tips=TRUE)
+    node_num = .normalize_integerish(
+        node_num,
+        'node_num',
+        min_value=1L,
+        max_value=max(phy[['edge']])
+    )
+    if (length(node_num) != 1L) {
+        stop('node_num must be a single integer node number.')
+    }
     species_parser = .normalize_species_parser_arg(
         value=species_parser,
         arg_name='species_parser'
@@ -172,6 +189,14 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
     as.numeric(overlap_count)
 }
 
+#' Score species-overlap duplications in a gene tree
+#'
+#' @param phy A binary `phylo` tree with unique tip labels.
+#' @param dc_cutoff Finite duplication-confidence cutoff in `[0, 1]`.
+#' @param species_parser Species-label convention.
+#' @param sep Literal separator in gene labels.
+#' @return The number of internal nodes whose score exceeds `dc_cutoff`.
+#' @export
 get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', sep='_') {
     # this function assumes that leaf names are: GENUS_SPECIES_GENEID (e.g. Bos_taurus_AF492351.1)
     species_parser = .normalize_species_parser_arg(
@@ -182,6 +207,18 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
         value=sep,
         arg_name='sep',
         allow_empty=FALSE
+    )
+    .validate_phylo_input(
+        phy,
+        context='phy',
+        binary=TRUE,
+        unique_tips=TRUE
+    )
+    dc_cutoff = .normalize_finite_numeric_scalar(
+        dc_cutoff,
+        'dc_cutoff',
+        min_value=0,
+        max_value=1
     )
     .species_overlap_score_fast_impl(
         phy=phy,
@@ -326,6 +363,17 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
     }, numeric(1))
 }
 
+#' Score every candidate root position by species overlap
+#'
+#' Uses a bidirectional traversal; the legacy `nslots` argument is accepted but
+#' no worker pool is created.
+#'
+#' @param phy A rooted binary `phylo` tree with unique tip labels.
+#' @param nslots Legacy requested worker count.
+#' @param species_parser Species-label convention.
+#' @param sep Literal separator in gene labels.
+#' @return A numeric score for each edge of `phy`.
+#' @export
 get_root_position_dependent_species_overlap_scores = function(
     phy,
     nslots=NULL,
@@ -342,9 +390,13 @@ get_root_position_dependent_species_overlap_scores = function(
         allow_empty=FALSE
     )
 
-    if (!inherits(phy, 'phylo') || !ape::is.rooted(phy) || !ape::is.binary(phy)) {
-        stop('phy must be a rooted binary object of class "phylo".')
-    }
+    .validate_phylo_input(
+        phy,
+        context='phy',
+        rooted=TRUE,
+        binary=TRUE,
+        unique_tips=TRUE
+    )
     num_edges = nrow(phy[['edge']])
     if (num_edges == 0) {
         return(numeric(0))
@@ -368,7 +420,17 @@ get_root_position_dependent_species_overlap_scores = function(
     )
 }
 
+#' Read NOTUNG parsable duplication records
+#'
+#' @param file Path to a NOTUNG parsable-output file.
+#' @param mode Event mode. Currently only `"D"` is supported.
+#' @return A data frame of duplication-event fields.
+#' @export
 read_notung_parsable = function(file, mode='D') {
+    file = .normalize_single_string_arg(file, 'file', allow_empty=FALSE)
+    if (!file.exists(file)) {
+        stop('file does not exist: ', file)
+    }
     mode = .normalize_choice_arg(
         value=mode,
         arg_name='mode',
@@ -400,12 +462,15 @@ read_notung_parsable = function(file, mode='D') {
         if (length(item_values) && item_values[1] == '#D') {
             item_values = item_values[-1]
         }
+        if (length(item_values) != length(cols) - 1L) {
+            stop(
+                'Malformed NOTUNG duplication line: expected 3 fields after #D, got ',
+                length(item_values), '. Line: ', paste(item_vec, collapse=' ')
+            )
+        }
         out = rep(NA_character_, length(cols))
         out[1] = 'D'
-        num_copy = min(length(item_values), length(cols) - 1L)
-        if (num_copy>0) {
-            out[1 + seq_len(num_copy)] = item_values[seq_len(num_copy)]
-        }
+        out[1 + seq_along(item_values)] = item_values
         out
     })
     df = data.frame(do.call(rbind, parsed), stringsAsFactors=FALSE)

@@ -1,7 +1,4 @@
-# Title     : TODO
-# Objective : TODO
-# Created by: kf
-# Created on: 5/20/18
+# Shared argument, validation, optional-package, and parallelism helpers.
 
 .coerce_parsed_arg_value = function(value) {
     if (length(value) != 1) {
@@ -50,10 +47,9 @@
 }
 
 .normalize_single_string_arg = function(value, arg_name, allow_empty=TRUE) {
-    if (length(value) != 1 || is.na(value)) {
+    if (!is.character(value) || length(value) != 1 || is.na(value)) {
         stop(arg_name, ' must be a single non-missing string.')
     }
-    value = as.character(value)
     if (!allow_empty && trimws(value) == '') {
         stop(arg_name, ' must be a single non-empty string.')
     }
@@ -61,14 +57,67 @@
 }
 
 .normalize_single_logical_arg = function(value, arg_name) {
-    if (length(value) != 1 || is.na(value)) {
+    if (!is.logical(value) || length(value) != 1 || is.na(value)) {
         stop(arg_name, ' must be a single non-missing logical value.')
     }
-    logical_value = suppressWarnings(as.logical(value))
-    if (is.na(logical_value)) {
-        stop(arg_name, ' must be a single non-missing logical value.')
+    value
+}
+
+.normalize_finite_numeric_scalar = function(
+    value,
+    arg_name,
+    min_value=-Inf,
+    max_value=Inf
+) {
+    if (!is.numeric(value) || length(value) != 1L || is.na(value) ||
+            !is.finite(value) || value < min_value || value > max_value) {
+        range_text = if (is.finite(min_value) || is.finite(max_value)) {
+            paste0(' in [', min_value, ', ', max_value, ']')
+        } else {
+            ''
+        }
+        stop(arg_name, ' must be a single finite numeric value', range_text, '.')
     }
-    logical_value
+    as.numeric(value)
+}
+
+.normalize_integerish = function(
+    value,
+    arg_name,
+    allow_na=FALSE,
+    allow_empty=FALSE,
+    min_value=-.Machine$integer.max,
+    max_value=.Machine$integer.max
+) {
+    if (!is.atomic(value) || is.factor(value)) {
+        stop(arg_name, ' must contain integer values.')
+    }
+    if (!length(value)) {
+        if (allow_empty) {
+            return(integer(0))
+        }
+        stop(arg_name, ' must contain at least one integer value.')
+    }
+    numeric_value = suppressWarnings(as.numeric(value))
+    conversion_failed = is.na(numeric_value) & !is.na(value)
+    non_integer = !is.na(numeric_value) & (
+        !is.finite(numeric_value) |
+        numeric_value != trunc(numeric_value) |
+        numeric_value < min_value |
+        numeric_value > max_value
+    )
+    if (any(conversion_failed | non_integer)) {
+        invalid = unique(as.character(value[conversion_failed | non_integer]))
+        stop(
+            arg_name,
+            ' must contain integer values in [', min_value, ', ', max_value,
+            ']. Invalid value(s): ', paste(invalid, collapse=', '), '.'
+        )
+    }
+    if (!allow_na && anyNA(numeric_value)) {
+        stop(arg_name, ' must not contain missing values.')
+    }
+    as.integer(numeric_value)
 }
 
 .normalize_choice_arg = function(value, arg_name, choices) {
@@ -83,6 +132,15 @@
     value
 }
 
+#' Parse command-line long arguments
+#'
+#' @param args Character values in `--name` or `--name=value` form.
+#' @param print Whether to print parsed values. Credential-like values are
+#'   redacted when printed.
+#' @return A named list of parsed values.
+#' @examples
+#' get_parsed_args(c("--threads=2", "--dry-run"))
+#' @export
 get_parsed_args = function(args, print=FALSE) {
     print = .normalize_single_logical_arg(
         value=print,
@@ -180,6 +238,12 @@ get_parsed_args = function(args, print=FALSE) {
     as.integer(num_parallel)
 }
 
+#' Test whether a value is blank
+#'
+#' @param x An object to inspect.
+#' @param false.triggers Whether logical false values should count as blank.
+#' @return A single logical value.
+#' @export
 is.blank = function(x, false.triggers=FALSE){
     # https://stackoverflow.com/questions/19655579/a-function-that-returns-true-on-na-null-nan-in-r
     false.triggers = .normalize_single_logical_arg(

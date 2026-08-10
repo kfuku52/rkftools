@@ -1,0 +1,38 @@
+name: R-CMD-check-as-cran
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r-cmd-check-as-cran-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-as-cran:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      _R_CHECK_FORCE_SUGGESTS_: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          r-version: release
+      - uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          extra-packages: |
+            any::rcmdcheck
+            any::covr
+            any::testthat
+            any::PhylogeneticEM
+            any::Rphylopars
+          dependencies: '"hard"'
+          needs: check
+      - uses: r-lib/actions/check-r-package@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          args: 'c("--as-cran", "--no-manual")'
