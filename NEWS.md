@@ -1,3 +1,15 @@
+# rkftools 0.1.12
+
+- Correct MAD's built-in help and document every output mode, including the
+  rooted-tree list and custom-only root proportions, without changing results.
+- Document conditional return types for replicate merging, the nearest-tip
+  criterion, and the binary/multifurcating root-matching paths.
+- Enable Markdown in generated R help so code and function links render.
+- Generate both usage figures directly from the published examples and align
+  the root-scoring example with the unrooted tree's edge indices.
+- Fix archived-source benchmark commands to use the development library and
+  clarify standalone scripts' library configuration.
+
 # rkftools 0.1.11
 
 - Preserve root-to-tip distances when padding short branches, propagating length

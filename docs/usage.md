@@ -45,14 +45,21 @@ gene_tree = ape::read.tree(text=paste0(
     "(Danio_rerio_geneB:0.15,Oryzias_latipes_geneB:0.15):0.15):0.25);"
 ))
 
+# Edge indices in the figure refer to this unrooted object.
+gene_tree = ape::unroot(gene_tree)
 root_scores = get_root_position_dependent_species_overlap_scores(
     gene_tree,
     nslots=1
 )
+which(root_scores == min(root_scores)) # 7
 ```
 
-The figure uses unique branch IDs after unrooting the tree; the minimum-score
-candidate root branch is branch 7.
+Each score corresponds to the same row of `gene_tree$edge`. The example and
+figure both use the unrooted tree's 13 edges; the minimum-score candidate is
+edge 7. Scoring the original rooted tree instead gives 14 edges and minimum
+indices 1 and 8. Unrooting changes the edge indices, so keep the scored tree
+and the tree used for plotting together. The left diagram shows topology;
+branch lengths are not to scale.
 
 ![root-position species-overlap score example](../man/figures/root_position_species_overlap.png)
 
@@ -61,8 +68,11 @@ candidate root branch is branch 7.
 caps automatic parallelism at eight cores, and avoids parallel overhead for
 small trees. Root-position species-overlap scoring now uses one bidirectional
 tree traversal, so its legacy `nslots` argument is accepted for compatibility
-but no worker pool is needed. `get_phy2_root_in_phy1()` likewise matches edge
-bipartitions in one traversal and retains `nslots` only for compatibility.
+but no worker pool is needed. For a binary target root,
+`get_phy2_root_in_phy1()` counts descendant tips and target-side membership in
+one traversal of the search tree. Multifurcating target roots instead compare
+component tip sets at candidate nodes. Both paths retain `nslots` only for
+compatibility and do not create workers.
 
 To cap cores globally:
 ```r
@@ -97,12 +107,34 @@ collapse-map keys; preserve those keys when passing its result to
 than the artificial root needed by the phylo representation.
 
 MAD treats zero-distance tip groups as one representative in its scoring
-objective, while preserving all tips in every returned tree. In `full` and
-`custom`, root indices, per-edge deviations, and root proportions correspond to
-the edge rows of the returned unrooted tree. Clock CV uses all returned tips.
+objective, while preserving all tips in every returned tree. `MAD()` and
+`MAD_parallel()` have the same output modes:
+
+| Mode | Return value |
+| --- | --- |
+| Omitted, `NULL`, or `"newick"` | Character vector of rooted Newick strings, one per optimal root |
+| `"stats"` | Two-element list: Newick strings and a statistics data frame with one row per optimal root |
+| `"full"` | Six-element list: the two `stats` elements, the unrooted tree, optimal root edge indices, per-edge deviations, and a list of rooted `phylo` trees |
+| `"custom"` | Seven-element list: the six `full` elements plus per-edge root proportions (`rho`) |
+
+The sixth element of `full` and `custom` is always a list, even with one optimal
+root. Root indices and per-edge deviations correspond to the edge rows of the
+returned unrooted tree. Only `custom` includes root proportions for those rows;
+they are absent from `full`. Clock CV uses all returned tips. See `?MAD` for the
+ordered list elements and statistics column names.
 
 Model summaries accept both gene labels and species-only labels. As in the
 existing l1ou adapter, labels without a recognizable genus/species pair count
 verbatim; missing labels are rejected instead of being counted as a species.
 Trait imputation accepts numeric matrices and data frames. Restoring observed
 leaves only replaces cells that had non-missing observations.
+
+`merge_replicates()` preserves the input and its class when `replicate_sep` is
+empty or no replicate groups are present. When it averages groups, it returns a
+data frame. Row means ignore missing values; all-missing groups remain `NA`.
+
+`get_nearest_tips()` finds subjects sharing the nearest MRCA with the query by
+the number of nodes on the query-to-MRCA path. It ignores branch lengths and
+can therefore select a subject with a greater patristic distance. Its named
+result contains the subject labels in `nearests` and the MRCA node number as a
+character string in `mrca`.

@@ -12,9 +12,9 @@ map_node_num(
 )
 }
 \arguments{
-\item{tree_original}{Original `phylo` tree.}
+\item{tree_original}{Original \code{phylo} tree.}
 
-\item{tree_collapsed}{Collapsed `phylo` tree.}
+\item{tree_collapsed}{Collapsed \code{phylo} tree.}
 
 \item{collapse_leaf_names}{Named list mapping placeholders to original tips.}
 

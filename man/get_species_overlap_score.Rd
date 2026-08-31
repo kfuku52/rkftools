@@ -12,17 +12,17 @@ get_species_overlap_score(
 )
 }
 \arguments{
-\item{phy}{A `phylo` tree with unique tip labels. Multifurcating nodes use
+\item{phy}{A \code{phylo} tree with unique tip labels. Multifurcating nodes use
 their maximum pairwise child-clade overlap.}
 
-\item{dc_cutoff}{Finite duplication-confidence cutoff in `[0, 1]`.}
+\item{dc_cutoff}{Finite duplication-confidence cutoff in \verb{[0, 1]}.}
 
 \item{species_parser}{Species-label convention.}
 
 \item{sep}{Literal separator in gene labels.}
 }
 \value{
-The number of internal nodes whose score exceeds `dc_cutoff`.
+The number of internal nodes whose score exceeds \code{dc_cutoff}.
 }
 \description{
 Score species-overlap duplications in a gene tree

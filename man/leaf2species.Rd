@@ -21,7 +21,7 @@ leaf2species(
 \item{sep}{Literal input separator.}
 }
 \value{
-Parsed species names, with `NA` for malformed labels.
+Parsed species names, with \code{NA} for malformed labels.
 }
 \description{
 Convert gene-bearing leaf labels to species names

@@ -7,7 +7,7 @@
 get_placeholder_tree(tree, original_trait_table)
 }
 \arguments{
-\item{tree}{A `phylo` tree.}
+\item{tree}{A \code{phylo} tree.}
 
 \item{original_trait_table}{Original numeric trait table.}
 }

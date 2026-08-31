@@ -7,21 +7,21 @@
 phylo2table(phy, name_col = "label", dist_col = "dist")
 }
 \arguments{
-\item{phy}{A rooted `phylo` tree with finite branch lengths and unique tips.}
+\item{phy}{A rooted \code{phylo} tree with finite branch lengths and unique tips.}
 
 \item{name_col}{Output node-label column name.}
 
 \item{dist_col}{Output branch-length column name.}
 }
 \value{
-A branch data frame with `branch_id`, `parent`, `sister`, labels,
-  and distances.
+A branch data frame with \code{branch_id}, \code{parent}, \code{sister}, labels,
+and distances.
 }
 \description{
 Supports rooted trees with unary, binary, or multifurcating internal nodes
 and assigns stable branch identifiers from clade signatures. Because the
-legacy `sister` column is singular, children with multiple siblings receive
-the sentinel `-999`; their shared `parent` fully represents the topology.
+legacy \code{sister} column is singular, children with multiple siblings receive
+the sentinel \code{-999}; their shared \code{parent} fully represents the topology.
 }
 \examples{
 tree <- ape::read.tree(text="((A:1,B:1):1,C:1);")

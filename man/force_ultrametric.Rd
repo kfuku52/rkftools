@@ -7,17 +7,17 @@
 force_ultrametric(tree, stop_if_larger_change = 0.01, verbose = FALSE)
 }
 \arguments{
-\item{tree}{A `phylo` tree with finite branch lengths.}
+\item{tree}{A \code{phylo} tree with finite branch lengths.}
 
 \item{stop_if_larger_change}{Maximum fractional total adjustment.}
 
 \item{verbose}{Whether to emit progress messages.}
 }
 \value{
-An ultrametric `phylo` tree.
+An ultrametric \code{phylo} tree.
 }
 \description{
-Binary trees are adjusted with [ape::chronoMPL()]. For multifurcating trees,
+Binary trees are adjusted with \code{\link[ape:chronoMPL]{ape::chronoMPL()}}. For multifurcating trees,
 terminal branches are extended to the maximum root-to-tip distance so the
 original topology is preserved.
 }

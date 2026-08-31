@@ -14,13 +14,13 @@ table2phylo(df, name_col, dist_col)
 \item{dist_col}{Name of the finite branch-length column.}
 }
 \value{
-A rooted `phylo` tree. Root-row distance is stored as `root.edge`.
+A rooted \code{phylo} tree. Root-row distance is stored as \code{root.edge}.
 }
 \description{
-The table must describe one connected rooted tree. `branch_id`, `parent`,
-and `sister` are identifiers; `-999`, blank, or missing values denote root
-and missing-sister sentinels. `parent` is the canonical topology field.
-Binary children use reciprocal `sister` identifiers, while unary and
+The table must describe one connected rooted tree. \code{branch_id}, \code{parent},
+and \code{sister} are identifiers; \code{-999}, blank, or missing values denote root
+and missing-sister sentinels. \code{parent} is the canonical topology field.
+Binary children use reciprocal \code{sister} identifiers, while unary and
 multifurcating children use sister sentinels.
 }
 \examples{

@@ -7,7 +7,7 @@
 has_same_leaves(phy1, phy1_node, phy2, phy2_node)
 }
 \arguments{
-\item{phy1, phy2}{`phylo` trees with identical tip-label multisets.}
+\item{phy1, phy2}{\code{phylo} trees with identical tip-label multisets.}
 
 \item{phy1_node, phy2_node}{Integer node numbers to compare.}
 }

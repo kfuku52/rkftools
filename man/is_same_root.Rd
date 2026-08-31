@@ -7,7 +7,7 @@
 is_same_root(phy1, phy2)
 }
 \arguments{
-\item{phy1, phy2}{Rooted `phylo` trees containing the same tips.}
+\item{phy1, phy2}{Rooted \code{phylo} trees containing the same tips.}
 }
 \value{
 A single logical value.

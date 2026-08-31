@@ -9,7 +9,7 @@ read_notung_parsable(file, mode = "D")
 \arguments{
 \item{file}{Path to a NOTUNG parsable-output file.}
 
-\item{mode}{Event mode. Currently only `"D"` is supported.}
+\item{mode}{Event mode. Currently only \code{"D"} is supported.}
 }
 \value{
 A data frame of duplication-event fields.

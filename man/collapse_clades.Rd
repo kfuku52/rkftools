@@ -7,7 +7,7 @@
 collapse_clades(tree, trait_table, collapse_node_nums, verbose = FALSE)
 }
 \arguments{
-\item{tree}{A rooted `phylo` tree.}
+\item{tree}{A rooted \code{phylo} tree.}
 
 \item{trait_table}{A numeric table named by tree tips.}
 

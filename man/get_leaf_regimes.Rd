@@ -9,7 +9,7 @@ get_leaf_regimes(pcm_out, mode)
 \arguments{
 \item{pcm_out}{An l1ou or PhylogeneticEM result object.}
 
-\item{mode}{Either `"l1ou"` or `"PhylogeneticEM"`.}
+\item{mode}{Either \code{"l1ou"} or \code{"PhylogeneticEM"}.}
 }
 \value{
 A data frame mapping leaf labels to regimes.

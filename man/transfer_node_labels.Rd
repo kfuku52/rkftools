@@ -7,12 +7,12 @@
 transfer_node_labels(phy_from, phy_to)
 }
 \arguments{
-\item{phy_from}{A labeled `phylo` tree.}
+\item{phy_from}{A labeled \code{phylo} tree.}
 
-\item{phy_to}{A `phylo` tree with the same tips.}
+\item{phy_to}{A \code{phylo} tree with the same tips.}
 }
 \value{
-`phy_to` with labels transferred by clade signature.
+\code{phy_to} with labels transferred by clade signature.
 }
 \description{
 Transfer internal-node labels between congruent trees

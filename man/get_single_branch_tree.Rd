@@ -12,7 +12,7 @@ get_single_branch_tree(name, dist)
 \item{dist}{A finite branch length.}
 }
 \value{
-A one-tip `phylo` tree.
+A one-tip \code{phylo} tree.
 }
 \description{
 Construct a one-tip tree

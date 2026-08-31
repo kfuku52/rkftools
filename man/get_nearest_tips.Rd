@@ -7,17 +7,25 @@
 get_nearest_tips(phy, query, subjects, mrca_matrix)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 
 \item{query}{A single tip label.}
 
 \item{subjects}{Candidate tip labels.}
 
-\item{mrca_matrix}{A named matrix returned by `ape::mrca()`.}
+\item{mrca_matrix}{A named matrix returned by \code{ape::mrca()}.}
 }
 \value{
-A list containing nearest tips and their MRCA.
+A named list with \code{nearests}, a character vector of subject tip labels
+sharing the nearest MRCA, and \code{mrca}, its node number as a character string.
 }
 \description{
-Find nearest subject tips
+Selects subjects whose most recent common ancestor (MRCA) with \code{query} is
+closest to \code{query} by the number of nodes on their connecting path. Branch
+lengths are ignored: this is not a minimum patristic-distance search.
+}
+\examples{
+tree = ape::read.tree(text="((A:100,B:100):1,C:1);")
+get_nearest_tips(tree, "A", c("B", "C"), ape::mrca(tree)) # B shares a closer MRCA
+ape::cophenetic.phylo(tree)["A", c("B", "C")]             # C has a shorter distance
 }

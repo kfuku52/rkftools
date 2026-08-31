@@ -14,11 +14,11 @@ regime_table_collapse2original(
 \arguments{
 \item{regime_table}{A collapsed-tree regime table.}
 
-\item{tree_original}{Original `phylo` tree.}
+\item{tree_original}{Original \code{phylo} tree.}
 
-\item{tree_collapsed}{Collapsed `phylo` tree.}
+\item{tree_collapsed}{Collapsed \code{phylo} tree.}
 
-\item{node_num_mapping}{Mapping returned by [map_node_num()].}
+\item{node_num_mapping}{Mapping returned by \code{\link[=map_node_num]{map_node_num()}}.}
 }
 \value{
 A regime table using original-tree node names.

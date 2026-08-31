@@ -9,9 +9,9 @@ get_bootstrap_table(pcm_out, bootstrap_result, mode = "l1ou")
 \arguments{
 \item{pcm_out}{An l1ou result object.}
 
-\item{bootstrap_result}{An object containing `detection.rate`.}
+\item{bootstrap_result}{An object containing \code{detection.rate}.}
 
-\item{mode}{Processing mode; currently only `"l1ou"`.}
+\item{mode}{Processing mode; currently only \code{"l1ou"}.}
 }
 \value{
 A node-name and bootstrap-support data frame.

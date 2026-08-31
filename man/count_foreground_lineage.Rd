@@ -7,9 +7,9 @@
 count_foreground_lineage(tree, trait)
 }
 \arguments{
-\item{tree}{A `phylo` tree with unique tips.}
+\item{tree}{A \code{phylo} tree with unique tips.}
 
-\item{trait}{A data frame containing `species` and one or more binary traits.}
+\item{trait}{A data frame containing \code{species} and one or more binary traits.}
 }
 \value{
 A named list of independent foreground-lineage counts.

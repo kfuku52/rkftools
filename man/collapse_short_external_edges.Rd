@@ -7,15 +7,15 @@
 collapse_short_external_edges(tree, threshold = 1e-06, verbose = FALSE)
 }
 \arguments{
-\item{tree}{A `phylo` tree with branch lengths.}
+\item{tree}{A \code{phylo} tree with branch lengths.}
 
 \item{threshold}{Finite non-negative minimum edge length.}
 
 \item{verbose}{Whether to emit progress messages.}
 }
 \value{
-A modified `phylo` tree.
+A modified \code{phylo} tree.
 }
 \description{
-Convenience wrapper around [pad_short_edges()] restricted to terminal edges.
+Convenience wrapper around \code{\link[=pad_short_edges]{pad_short_edges()}} restricted to terminal edges.
 }

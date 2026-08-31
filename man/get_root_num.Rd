@@ -7,7 +7,7 @@
 get_root_num(phy)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 }
 \value{
 The integer root-node number, or multiple values for malformed trees.

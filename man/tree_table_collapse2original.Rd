@@ -14,7 +14,7 @@ tree_table_collapse2original(
 \arguments{
 \item{tree_table}{A comparative-model summary table.}
 
-\item{tree_original}{The original `phylo` tree.}
+\item{tree_original}{The original \code{phylo} tree.}
 
 \item{species_parser}{Species-label convention. Species-only labels are
 accepted; labels without a genus/species pair are counted verbatim.}
@@ -22,7 +22,7 @@ accepted; labels without a genus/species pair are counted verbatim.}
 \item{sep}{Literal separator in leaf labels.}
 }
 \value{
-`tree_table` with original leaf and species counts.
+\code{tree_table} with original leaf and species counts.
 }
 \description{
 Restore original-tree counts in a model summary

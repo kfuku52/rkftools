@@ -68,8 +68,10 @@ is_same_root = function(phy1, phy2) {
 
 #' Locate one tree's root split in another tree
 #'
-#' Computes all edge bipartitions in one traversal rather than repeatedly
-#' rerooting `phy1`.
+#' For a binary target root, counts descendant tips and target-side membership
+#' in one traversal of `phy1`. For a multifurcating target root, compares the
+#' component tip sets at candidate nodes. Neither path repeatedly reroots `phy1`
+#' or creates a worker pool.
 #'
 #' @param phy1 A `phylo` tree in which to locate the split.
 #' @param phy2 A rooted `phylo` tree providing the target root partition.
@@ -83,8 +85,8 @@ get_phy2_root_in_phy1 = function(phy1, phy2, nslots=NULL, mode=c("node_num", "in
     mode_name = match.arg(mode)
     .validate_phylo_input(phy1, context='phy1', unique_tips=TRUE)
     .validate_phylo_input(phy2, context='phy2', unique_tips=TRUE)
-    # nslots is retained for API compatibility. Root matching is now a single
-    # traversal and does not benefit from a worker pool.
+    # nslots is retained for API compatibility. Both root-matching paths run
+    # serially without rerooting phy1 or creating a worker pool.
     if (!is.null(nslots)) {
         .resolve_parallel_cores(
             requested=nslots,

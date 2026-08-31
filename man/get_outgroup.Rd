@@ -7,7 +7,7 @@
 get_outgroup(phy)
 }
 \arguments{
-\item{phy}{A rooted `phylo` tree.}
+\item{phy}{A rooted \code{phylo} tree.}
 }
 \value{
 Tip labels in the smallest root-child clade.

@@ -39,41 +39,49 @@ reproduce that regression: medians were 0.207/0.157 s wall time and
 host-load sensitivity rather than a threefold code slowdown; they do not claim
 that every operation became faster. The gate remains unchanged.
 
-Root split matching now counts descendant tips and target-side membership in
-one traversal. Table conversion reuses descendants and preallocates columns;
+For binary target roots, root split matching now counts descendant tips and
+target-side membership in one traversal of the search tree. Multifurcating
+target roots use a separate path comparing component tip sets at candidate
+nodes; the binary-root speedups above do not measure that path.
+Table conversion reuses descendants and preallocates columns;
 its historical clade-bit ordering still requires quadratic work for very large
 trees. The change removes repeated whole-edge scans, not every possible scaling
 limit. MAD no longer forces a full garbage collection on every serial call.
 
 ## Reproduce or compare a change
 
-`make benchmark` always loads the current checkout with pkgload, verifies the
-namespace source path, and logs the package version and commit. It cannot
-silently benchmark an older globally installed package.
+`make benchmark` loads the current checkout by default, or the explicitly
+requested `--source` tree, with pkgload. It verifies the namespace source path
+and logs the package version and commit, so it cannot silently benchmark an
+older globally installed package. Run comparisons through Make as well: this
+passes the current development library to the archived source, which has no
+`.local/R-library` of its own. If using `DEV_LIB=/absolute/path/to/library`, pass
+the same setting to each Make invocation.
 
 ```sh
 make setup-minimal
 make benchmark
 
-# Compare against the previous implementation without switching branches.
+# Compare 0.1.10 with the current checkout without switching branches.
 benchmark_before=$(mktemp -d)
 git archive 81d94e5 | tar -x -C "$benchmark_before"
-RKFTOOLS_BENCHMARK_COMMIT=81d94e5 Rscript tools/benchmark.R \
-  "--source=$benchmark_before" --output=benchmark/before.csv
-Rscript tools/benchmark.R --output=benchmark/after.csv \
-  --baseline=benchmark/before.csv
+RKFTOOLS_BENCHMARK_COMMIT=81d94e5 make benchmark \
+  BENCHMARK_ARGS="--source=\"$benchmark_before\" --output=benchmark/before.csv"
+make benchmark \
+  BENCHMARK_ARGS="--output=benchmark/after.csv --baseline=benchmark/before.csv"
 ```
 
 Each CSV has a companion `.samples.csv`, `.outputs.rds`, and `.metadata.rds`.
 The output file stores complete typed results for equivalence checks; keep it
 with the baseline CSV. A comparison also writes `.comparison.csv`.
 
-Use `--sizes=200,400,800`, `--repetitions=5`, or an output path to customize a
-run. `--max-ratio=2.0` makes a baseline comparison fail if a median more than
-doubles and the new median exceeds 50 ms, avoiding ratios dominated by timer
-resolution. Compare matching environments and repeat a flagged case before
-attributing it to a code change. Different backend versions can also change
-correct results and require explicit review of a new baseline.
+Pass options such as `--sizes=200,400,800`, `--repetitions=5`, or an output path
+in `BENCHMARK_ARGS` to customize a run. `--max-ratio=2.0` makes a baseline
+comparison fail if a median more than doubles and the new median exceeds 50 ms,
+avoiding ratios dominated by timer resolution. Compare matching environments
+and repeat a flagged case before attributing it to a code change. Different
+backend versions can also change correct results and require explicit review
+of a new baseline.
 
 The weekly/manual benchmark workflow retrieves the most recent successful
 run's retained artifact as its baseline. The first run (or an expired artifact)

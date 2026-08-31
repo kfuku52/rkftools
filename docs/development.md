@@ -15,7 +15,11 @@ Setup adds missing packages to `.local/R-library`, which is ignored by Git and
 excluded from package builds. Existing libraries are not overwritten. Use
 `make DEV_LIB=/absolute/path/to/library ...` to choose another library. The
 Makefile exports that library for every R process while preserving existing
-library search paths. Standalone scripts also accept `RKFTOOLS_DEV_LIBRARY`.
+library search paths. The setup, test, benchmark, fixture-generation, and
+documentation-figure scripts also accept `RKFTOOLS_DEV_LIBRARY` when run
+directly. The coverage script uses R's standard library paths instead: run
+`make coverage`, or set `R_LIBS` to the development library for a standalone
+`Rscript tools/coverage.R` invocation.
 
 For a smaller environment, run `make setup-minimal` and `make check`. Optional
 backend tests explicitly skip when those packages are absent; adapter contract
@@ -23,10 +27,18 @@ tests still run without them. `make check-full` and `make check-as-cran` require
 all Suggests, matching the strict CI configuration. Missing dependencies are
 errors in those checks, not silent skips.
 
-`make document` regenerates the Rd files with roxygen2. `make release-check`
-checks DESCRIPTION, NEWS, and the README badge; an explicit tag argument to
-`tools/release-check.R` also verifies the tag version. Bump the package version
-before pushing, following the repository policy.
+`make document` regenerates the Rd files with roxygen2, with Markdown enabled
+in DESCRIPTION so inline code and function references render as R help.
+`make figures` executes the R examples in `docs/usage.md` and regenerates both
+figures in `man/figures/`. It uses the actual tree labels, edge rows, branch
+table, and computed scores, so figure values are not maintained separately.
+Regenerate and visually inspect the figures after changing the examples or
+tree conversion/scoring code. No plotting packages beyond base R and the
+existing runtime dependencies are needed.
+
+`make release-check` checks DESCRIPTION, NEWS, and the README badge. An explicit
+tag argument to `tools/release-check.R` also verifies the tag version. Bump the
+package version before pushing, following the repository policy.
 
 ## Tests and fixtures
 

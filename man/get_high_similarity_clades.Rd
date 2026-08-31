@@ -14,12 +14,12 @@ get_high_similarity_clades(
 )
 }
 \arguments{
-\item{tree}{A rooted `phylo` tree with unique tips.}
+\item{tree}{A rooted \code{phylo} tree with unique tips.}
 
 \item{trait_table}{A numeric trait table named by tree tips.}
 
-\item{method}{One of `"complementarity"`, `"pearson"`, `"spearman"`, or
-`"kendall"`.}
+\item{method}{One of \code{"complementarity"}, \code{"pearson"}, \code{"spearman"}, or
+\code{"kendall"}.}
 
 \item{threshold}{Similarity threshold in the method's valid range.}
 

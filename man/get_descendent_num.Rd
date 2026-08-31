@@ -7,7 +7,7 @@
 get_descendent_num(phy, node_num, leaf_only = FALSE)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 
 \item{node_num}{One or more integer node numbers.}
 

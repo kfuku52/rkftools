@@ -7,10 +7,10 @@
 remove_redundant_root_edge(phy)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 }
 \value{
-A `phylo` tree with singleton nodes collapsed where applicable.
+A \code{phylo} tree with singleton nodes collapsed where applicable.
 }
 \description{
 Collapse redundant singleton root edges

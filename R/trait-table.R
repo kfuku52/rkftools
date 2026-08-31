@@ -96,7 +96,15 @@ remove_invariant_traits = function(trait_table, small_dif=0.001, verbose=FALSE) 
 #' @param trait_table A named numeric matrix or data frame.
 #' @param replicate_sep Literal separator before replicate suffixes.
 #' @param verbose Whether to report detected replicate groups.
-#' @return A data frame with replicate groups averaged by row.
+#' @return If `replicate_sep` is empty or no replicate groups are found, the
+#'   original `trait_table`, retaining its matrix or data-frame class. Otherwise,
+#'   a data frame with replicate groups averaged by row, ignoring missing values.
+#'   An entirely missing group remains `NA`.
+#' @examples
+#' x = matrix(1:4, 2, dimnames=list(c("A", "B"), c("x", "y")))
+#' class(merge_replicates(x, "_")) # No groups: matrix
+#' colnames(x) = c("x_1", "x_2")
+#' class(merge_replicates(x, "_")) # Averaged groups: data.frame
 #' @export
 merge_replicates = function(trait_table, replicate_sep, verbose=FALSE) {
     .validate_numeric_trait_table(trait_table)

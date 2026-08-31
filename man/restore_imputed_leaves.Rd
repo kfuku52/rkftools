@@ -7,7 +7,7 @@
 restore_imputed_leaves(leaf_table, original_trait_table)
 }
 \arguments{
-\item{leaf_table}{A leaf table with `param` and node-name columns.}
+\item{leaf_table}{A leaf table with \code{param} and node-name columns.}
 
 \item{original_trait_table}{Original traits named by leaf rows.}
 }

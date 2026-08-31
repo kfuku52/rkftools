@@ -7,7 +7,7 @@
 get_placeholder_leaf(tree, original_trait_table)
 }
 \arguments{
-\item{tree}{A `phylo` tree.}
+\item{tree}{A \code{phylo} tree.}
 
 \item{original_trait_table}{Original traits named by tree tips.}
 }

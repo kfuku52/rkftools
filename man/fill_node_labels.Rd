@@ -7,12 +7,12 @@
 fill_node_labels(phy, verbose = FALSE)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 
 \item{verbose}{Whether to emit a progress message.}
 }
 \value{
-A `phylo` tree with unique generated labels for missing nodes.
+A \code{phylo} tree with unique generated labels for missing nodes.
 }
 \description{
 Fill missing internal-node labels

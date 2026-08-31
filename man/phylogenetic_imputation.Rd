@@ -7,7 +7,7 @@
 phylogenetic_imputation(tree, trait_table, verbose = FALSE)
 }
 \arguments{
-\item{tree}{A `phylo` tree.}
+\item{tree}{A \code{phylo} tree.}
 
 \item{trait_table}{A numeric trait table named by tree tips.}
 

@@ -9,12 +9,12 @@ sort_exp(exp, tree, col = "gene_id")
 \arguments{
 \item{exp}{A data frame containing one row per tree tip.}
 
-\item{tree}{A `phylo` tree.}
+\item{tree}{A \code{phylo} tree.}
 
 \item{col}{Name of the key column.}
 }
 \value{
-`exp` reordered to `tree$tip.label`.
+\code{exp} reordered to \code{tree$tip.label}.
 }
 \description{
 Sort an expression table by tree-tip order

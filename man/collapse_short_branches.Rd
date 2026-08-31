@@ -7,14 +7,14 @@
 collapse_short_branches(tree, tol = 1e-08, verbose = FALSE)
 }
 \arguments{
-\item{tree}{A `phylo` tree with branch lengths and unique tips.}
+\item{tree}{A \code{phylo} tree with branch lengths and unique tips.}
 
 \item{tol}{Finite non-negative collapse tolerance.}
 
 \item{verbose}{Whether to emit progress messages.}
 }
 \value{
-A modified `phylo` tree with unaffected edge lengths restored.
+A modified \code{phylo} tree with unaffected edge lengths restored.
 }
 \description{
 Collapse extremely short internal branches

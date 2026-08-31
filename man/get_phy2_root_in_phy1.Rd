@@ -7,20 +7,21 @@
 get_phy2_root_in_phy1(phy1, phy2, nslots = NULL, mode = c("node_num", "index"))
 }
 \arguments{
-\item{phy1}{A `phylo` tree in which to locate the split.}
+\item{phy1}{A \code{phylo} tree in which to locate the split.}
 
-\item{phy2}{A rooted `phylo` tree providing the target root partition.}
+\item{phy2}{A rooted \code{phylo} tree providing the target root partition.}
 
 \item{nslots}{Legacy worker-count argument; accepted but no workers are used.}
 
-\item{mode}{Return `"node_num"` or edge `"index"`.}
+\item{mode}{Return \code{"node_num"} or edge \code{"index"}.}
 }
 \value{
-An integer node number or edge index, or `NA` when unmatched. When a
-  multifurcating target root matches the current root of `phy1`, `mode =
-  "index"` returns `NA` because the root has no incoming edge.
+An integer node number or edge index, or \code{NA} when unmatched. When a
+multifurcating target root matches the current root of \code{phy1}, \code{mode = "index"} returns \code{NA} because the root has no incoming edge.
 }
 \description{
-Computes all edge bipartitions in one traversal rather than repeatedly
-rerooting `phy1`.
+For a binary target root, counts descendant tips and target-side membership
+in one traversal of \code{phy1}. For a multifurcating target root, compares the
+component tip sets at candidate nodes. Neither path repeatedly reroots \code{phy1}
+or creates a worker pool.
 }

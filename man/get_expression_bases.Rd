@@ -12,7 +12,7 @@ get_expression_bases(trait_table, replicate_sep)
 \item{replicate_sep}{Literal separator before replicate suffixes.}
 }
 \value{
-Unique base expression names excluding `"gene"`.
+Unique base expression names excluding \code{"gene"}.
 }
 \description{
 Get base names of expression replicate columns

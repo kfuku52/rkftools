@@ -7,12 +7,12 @@
 get_deepest_node_num(tree, node_nums)
 }
 \arguments{
-\item{tree}{A `phylo` tree.}
+\item{tree}{A \code{phylo} tree.}
 
 \item{node_nums}{Candidate integer node numbers.}
 }
 \value{
-A single integer node number or `NA`.
+A single integer node number or \code{NA}.
 }
 \description{
 Select the deepest candidate node

@@ -7,7 +7,7 @@
 get_rooted_newick(t, madr, rho)
 }
 \arguments{
-\item{t}{A `phylo` tree.}
+\item{t}{A \code{phylo} tree.}
 
 \item{madr}{A single edge index.}
 

@@ -7,7 +7,7 @@
 contains_polytomy(phy)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 }
 \value{
 A single logical value.

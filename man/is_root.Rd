@@ -7,7 +7,7 @@
 is_root(phy, node_num)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 
 \item{node_num}{One or more integer node numbers.}
 }

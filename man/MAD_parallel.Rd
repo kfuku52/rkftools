@@ -7,20 +7,40 @@
 MAD_parallel(unrooted_newick, output_mode, ncpu = NULL)
 }
 \arguments{
-\item{unrooted_newick}{A Newick string or `phylo` tree.}
+\item{unrooted_newick}{A Newick string or \code{phylo} tree.}
 
-\item{output_mode}{One of `"newick"`, `"stats"`, `"full"`, or `"custom"`.}
+\item{output_mode}{One of \code{"newick"}, \code{"stats"}, \code{"full"}, or \code{"custom"}.
+If omitted or \code{NULL}, uses \code{"newick"}.}
 
-\item{ncpu}{Requested worker count. Automatic parallelism is capped by
-`options("rkftools.max_cores")` and skipped for small trees.}
+\item{ncpu}{Requested worker count, capped by \code{options("rkftools.max_cores")}
+even when supplied explicitly. If omitted, available cores are selected
+automatically and small trees run serially.}
 }
 \value{
-Newick text or a list whose detail depends on `output_mode`.
+With \code{"newick"}, a character vector of rooted Newick strings, one per
+equally optimal root. Other modes return an unnamed list in this order:
+\enumerate{
+\item A character vector of rooted Newick strings.
+\item A data frame with \code{ambiguity_index}, \code{clock_cv}, \code{ancestor_deviation}, and
+\code{n_roots}, with one row per optimal root.
+\item The unrooted \code{phylo} tree used to index the results.
+\item Edge-row indices of the optimal roots in element 3.
+\item Ancestor deviations for every edge row in element 3.
+\item A list of rooted \code{phylo} trees, one per optimal root, even for one root.
+\item Root proportions (\code{rho}) for every edge row in element 3.
+}
+
+\code{"stats"} returns elements 1-2, \code{"full"} returns elements 1-6, and \code{"custom"}
+returns all seven elements. Root proportions are absent from \code{"full"}.
 }
 \description{
 Multifurcations are scored directly and are not resolved into random binary
 trees. Zero-distance tips share one representative in the scoring objective;
-all original tips remain in returned trees. In `full` and `custom` results,
-root indices, deviations, and proportions refer to the returned unrooted
-tree's edge rows. Clock CV uses all tips of each returned rooted tree.
+all original tips remain in returned trees. In \code{full} and \code{custom} results,
+root indices and deviations refer to the returned unrooted tree's edge rows.
+Only \code{custom} also returns root proportions for those edges. Clock CV uses
+all tips of each returned rooted tree.
+}
+\seealso{
+\code{\link[=MAD]{MAD()}}
 }

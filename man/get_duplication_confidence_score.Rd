@@ -12,19 +12,19 @@ get_duplication_confidence_score(
 )
 }
 \arguments{
-\item{phy}{A `phylo` tree with unique tip labels.}
+\item{phy}{A \code{phylo} tree with unique tip labels.}
 
 \item{node_num}{A single integer internal-node number.}
 
-\item{species_parser}{Species-label convention: `"legacy"` or
-`"taxonomic"`.}
+\item{species_parser}{Species-label convention: \code{"legacy"} or
+\code{"taxonomic"}.}
 
 \item{sep}{Literal separator in gene labels.}
 }
 \value{
-The maximum pairwise Jaccard overlap among child clades, or `NA`
-  when the node has fewer than two children or is the trivalent display root
-  of an unrooted tree. For binary nodes this is the original two-child score.
+The maximum pairwise Jaccard overlap among child clades, or \code{NA}
+when the node has fewer than two children or is the trivalent display root
+of an unrooted tree. For binary nodes this is the original two-child score.
 }
 \description{
 Calculate a duplication confidence score

@@ -7,7 +7,7 @@
 get_species_names(phy, sep = "_", species_parser = "legacy")
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 
 \item{sep}{Literal input and output separator.}
 

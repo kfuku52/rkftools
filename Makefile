@@ -3,7 +3,7 @@ export RKFTOOLS_DEV_LIBRARY := $(abspath $(DEV_LIB))
 export R_LIBS := $(abspath $(DEV_LIB))$(if $(R_LIBS),:$(R_LIBS))
 BENCHMARK_ARGS ?=
 
-.PHONY: setup setup-minimal test coverage check check-full check-as-cran document benchmark release-check
+.PHONY: setup setup-minimal test coverage check check-full check-as-cran document figures benchmark release-check
 
 setup:
 	Rscript tools/setup.R
@@ -31,6 +31,9 @@ check-as-cran:
 
 document:
 	Rscript -e 'roxygen2::roxygenise(".")'
+
+figures:
+	Rscript tools/generate-doc-figures.R
 
 benchmark:
 	Rscript tools/benchmark.R $(BENCHMARK_ARGS)

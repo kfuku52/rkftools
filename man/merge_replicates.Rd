@@ -14,8 +14,17 @@ merge_replicates(trait_table, replicate_sep, verbose = FALSE)
 \item{verbose}{Whether to report detected replicate groups.}
 }
 \value{
-A data frame with replicate groups averaged by row.
+If \code{replicate_sep} is empty or no replicate groups are found, the
+original \code{trait_table}, retaining its matrix or data-frame class. Otherwise,
+a data frame with replicate groups averaged by row, ignoring missing values.
+An entirely missing group remains \code{NA}.
 }
 \description{
 Merge replicate trait columns
+}
+\examples{
+x = matrix(1:4, 2, dimnames=list(c("A", "B"), c("x", "y")))
+class(merge_replicates(x, "_")) # No groups: matrix
+colnames(x) = c("x_1", "x_2")
+class(merge_replicates(x, "_")) # Averaged groups: data.frame
 }

@@ -270,11 +270,20 @@ get_tip_labels = function(phy, node_num, out=NULL) {
 
 #' Find nearest subject tips
 #'
+#' Selects subjects whose most recent common ancestor (MRCA) with `query` is
+#' closest to `query` by the number of nodes on their connecting path. Branch
+#' lengths are ignored: this is not a minimum patristic-distance search.
+#'
 #' @param phy A `phylo` tree.
 #' @param query A single tip label.
 #' @param subjects Candidate tip labels.
 #' @param mrca_matrix A named matrix returned by `ape::mrca()`.
-#' @return A list containing nearest tips and their MRCA.
+#' @return A named list with `nearests`, a character vector of subject tip labels
+#'   sharing the nearest MRCA, and `mrca`, its node number as a character string.
+#' @examples
+#' tree = ape::read.tree(text="((A:100,B:100):1,C:1);")
+#' get_nearest_tips(tree, "A", c("B", "C"), ape::mrca(tree)) # B shares a closer MRCA
+#' ape::cophenetic.phylo(tree)["A", c("B", "C")]             # C has a shorter distance
 #' @export
 get_nearest_tips = function(phy, query, subjects, mrca_matrix) {
     query = .normalize_single_string_arg(

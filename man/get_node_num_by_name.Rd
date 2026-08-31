@@ -7,7 +7,7 @@
 get_node_num_by_name(phy, node_name)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 
 \item{node_name}{One or more tip or internal-node labels.}
 }

@@ -9,7 +9,7 @@ get_tree_table(pcm_out, mode, species_parser = "legacy", sep = "_")
 \arguments{
 \item{pcm_out}{An l1ou or PhylogeneticEM result object.}
 
-\item{mode}{Either `"l1ou"` or `"PhylogeneticEM"`.}
+\item{mode}{Either \code{"l1ou"} or \code{"PhylogeneticEM"}.}
 
 \item{species_parser}{Species-label convention. Species-only labels are
 accepted; labels without a genus/species pair are counted verbatim.}

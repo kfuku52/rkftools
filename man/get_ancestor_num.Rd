@@ -7,7 +7,7 @@
 get_ancestor_num(phy, node_num)
 }
 \arguments{
-\item{phy}{A `phylo` tree.}
+\item{phy}{A \code{phylo} tree.}
 
 \item{node_num}{A single integer node number.}
 }

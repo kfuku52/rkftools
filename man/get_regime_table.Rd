@@ -9,7 +9,7 @@ get_regime_table(pcm_out, mode)
 \arguments{
 \item{pcm_out}{An l1ou or PhylogeneticEM result object.}
 
-\item{mode}{Either `"l1ou"` or `"PhylogeneticEM"`.}
+\item{mode}{Either \code{"l1ou"} or \code{"PhylogeneticEM"}.}
 }
 \value{
 A long-format regime and parameter data frame.

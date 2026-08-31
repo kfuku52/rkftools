@@ -413,12 +413,14 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
 #' Uses a bidirectional traversal; the legacy `nslots` argument is accepted but
 #' no worker pool is created.
 #'
-#' @param phy A rooted `phylo` tree with unique tip labels. Multifurcating
-#'   nodes use their maximum pairwise child-clade overlap.
+#' @param phy A rooted or unrooted `phylo` tree with unique tip labels.
+#'   Multifurcating nodes use their maximum pairwise child-clade overlap.
 #' @param nslots Legacy requested worker count.
 #' @param species_parser Species-label convention.
 #' @param sep Literal separator in gene labels.
-#' @return A numeric score for each edge of `phy`.
+#' @return A numeric vector with one score for each row of `phy$edge`, in the
+#'   same order. Unrooting or reordering a tree can change these edge indices;
+#'   use the same tree object when labeling candidate branches and their scores.
 #' @export
 get_root_position_dependent_species_overlap_scores = function(
     phy,

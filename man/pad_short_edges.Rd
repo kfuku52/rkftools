@@ -12,7 +12,7 @@ pad_short_edges(
 )
 }
 \arguments{
-\item{tree}{A `phylo` tree with branch lengths.}
+\item{tree}{A \code{phylo} tree with branch lengths.}
 
 \item{threshold}{Finite non-negative minimum edge length.}
 
@@ -22,7 +22,7 @@ Internal edges can still transfer length, but never become negative.}
 \item{verbose}{Whether to emit progress messages.}
 }
 \value{
-A modified `phylo` tree.
+A modified \code{phylo} tree.
 }
 \description{
 Transfers length through ancestors while preserving every root-to-tip

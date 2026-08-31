@@ -9,7 +9,7 @@ calc_complementarity(array1, array2, method = "weighted")
 \arguments{
 \item{array1, array2}{Equal-length finite, non-negative numeric vectors.}
 
-\item{method}{Either `"weighted"` or `"independent"`.}
+\item{method}{Either \code{"weighted"} or \code{"independent"}.}
 }
 \value{
 A numeric complementarity score.

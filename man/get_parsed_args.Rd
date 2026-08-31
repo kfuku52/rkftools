@@ -7,7 +7,7 @@
 get_parsed_args(args, print = FALSE)
 }
 \arguments{
-\item{args}{Character values in `--name` or `--name=value` form.}
+\item{args}{Character values in \code{--name} or \code{--name=value} form.}
 
 \item{print}{Whether to print parsed values. Credential-like values are
 redacted when printed.}

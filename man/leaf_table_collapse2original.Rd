@@ -14,11 +14,11 @@ leaf_table_collapse2original(
 \arguments{
 \item{leaf_table}{A collapsed-tree leaf table.}
 
-\item{tree_original}{Original `phylo` tree.}
+\item{tree_original}{Original \code{phylo} tree.}
 
-\item{tree_collapsed}{Collapsed `phylo` tree.}
+\item{tree_collapsed}{Collapsed \code{phylo} tree.}
 
-\item{node_num_mapping}{Mapping returned by [map_node_num()].}
+\item{node_num_mapping}{Mapping returned by \code{\link[=map_node_num]{map_node_num()}}.}
 }
 \value{
 A leaf table expanded to original tips.

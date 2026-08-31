@@ -257,24 +257,54 @@ get_rooted_newick = function(t, madr, rho) {
 #' Multifurcations are scored directly and are not resolved into random binary
 #' trees. Zero-distance tips share one representative in the scoring objective;
 #' all original tips remain in returned trees. In `full` and `custom` results,
-#' root indices, deviations, and proportions refer to the returned unrooted
-#' tree's edge rows. Clock CV uses all tips of each returned rooted tree.
+#' root indices and deviations refer to the returned unrooted tree's edge rows.
+#' Only `custom` also returns root proportions for those edges. Clock CV uses
+#' all tips of each returned rooted tree.
 #'
 #' @param unrooted_newick A Newick string or `phylo` tree.
 #' @param output_mode One of `"newick"`, `"stats"`, `"full"`, or `"custom"`.
-#' @return Newick text or a list whose detail depends on `output_mode`.
+#'   If omitted or `NULL`, uses `"newick"`.
+#' @return With `"newick"`, a character vector of rooted Newick strings, one per
+#'   equally optimal root. Other modes return an unnamed list in this order:
+#'
+#'   1. A character vector of rooted Newick strings.
+#'   2. A data frame with `ambiguity_index`, `clock_cv`, `ancestor_deviation`, and
+#'      `n_roots`, with one row per optimal root.
+#'   3. The unrooted `phylo` tree used to index the results.
+#'   4. Edge-row indices of the optimal roots in element 3.
+#'   5. Ancestor deviations for every edge row in element 3.
+#'   6. A list of rooted `phylo` trees, one per optimal root, even for one root.
+#'   7. Root proportions (`rho`) for every edge row in element 3.
+#'
+#'   `"stats"` returns elements 1-2, `"full"` returns elements 1-6, and `"custom"`
+#'   returns all seven elements. Root proportions are absent from `"full"`.
+#' @seealso [MAD_parallel()]
+#' @examples
+#' set.seed(51)
+#' tree = ape::rtree(10)
+#' class(MAD(tree))             # character
+#' length(MAD(tree, "full"))    # 6
+#' length(MAD(tree, "custom"))  # 7
 #' @export
 MAD <- function(unrooted_newick,output_mode){
     # this function was modified from the original MAD function from:
     # https://www.mikrobio.uni-kiel.de/de/ag-dagan/ressourcen
     if(nargs()==0){ #print help message
-        return(cat("Minimal Ancestor Deviation (MAD) rooting","","Usage: res <- MAD(unrooted_newick,output_mode)","",
-        "unrooted_newick: Unrooted tree string in newick format or a tree object of class 'phylo'","",
-        "output_mode: Amount of information to return.", "  If 'newick' (default) only the rooted newick string",
-        "  If 'stats' also a structure with the ambiguity index, clock cv, the minimum ancestor deviation and the number of roots",
-        "  If 'full' also an unrooted tree object, the index of the root branch, the branch ancestor deviations and a rooted tree object",
-        "","res: a list with the results containing one ('newick'), two ('stats') or six elements ('full')","",
-        "Dependencies: 'ape' and 'phytools'","","Version: 1.1, 03-May-2017",sep="\n"))
+        return(cat(
+            "Minimal Ancestor Deviation (MAD) rooting", "",
+            "Usage: res <- MAD(unrooted_newick, output_mode)", "",
+            "unrooted_newick: A Newick string or a tree of class 'phylo'.", "",
+            "output_mode (omitted or NULL uses 'newick'):",
+            "  'newick': Character vector of rooted Newick strings, one per optimal root.",
+            "  'stats': Two-element list: Newick strings and a root-statistics data frame.",
+            "  'full': Six-element list: stats results, the unrooted tree, root edge indices,",
+            "          per-edge deviations, and a list of rooted phylo trees.",
+            "  'custom': Seven-element list: full results plus per-edge root proportions (rho).", "",
+            "Root edge indices, deviations, and custom-only rho use the unrooted tree's edge rows.",
+            "See ?MAD for the full return-value contract.", "",
+            "Upstream MAD implementation: version 1.1, 03-May-2017.", "",
+            sep="\n"
+        ))
     }
     mode = if (missing(output_mode)) NULL else output_mode
     if (!is.null(mode)) {
@@ -294,17 +324,12 @@ MAD <- function(unrooted_newick,output_mode){
 
 #' Root a tree using parallel minimal ancestor deviation
 #'
-#' Multifurcations are scored directly and are not resolved into random binary
-#' trees. Zero-distance tips share one representative in the scoring objective;
-#' all original tips remain in returned trees. In `full` and `custom` results,
-#' root indices, deviations, and proportions refer to the returned unrooted
-#' tree's edge rows. Clock CV uses all tips of each returned rooted tree.
-#'
-#' @param unrooted_newick A Newick string or `phylo` tree.
-#' @param output_mode One of `"newick"`, `"stats"`, `"full"`, or `"custom"`.
-#' @param ncpu Requested worker count. Automatic parallelism is capped by
-#'   `options("rkftools.max_cores")` and skipped for small trees.
-#' @return Newick text or a list whose detail depends on `output_mode`.
+#' @inherit MAD description return
+#' @inheritParams MAD
+#' @param ncpu Requested worker count, capped by `options("rkftools.max_cores")`
+#'   even when supplied explicitly. If omitted, available cores are selected
+#'   automatically and small trees run serially.
+#' @seealso [MAD()]
 #' @export
 MAD_parallel = function(unrooted_newick, output_mode, ncpu=NULL) {
     mode = if (missing(output_mode)) NULL else output_mode

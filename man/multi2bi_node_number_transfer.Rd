@@ -11,7 +11,7 @@ multi2bi_node_number_transfer(
 )
 }
 \arguments{
-\item{multifurcated_tree}{A multifurcating `phylo` tree.}
+\item{multifurcated_tree}{A multifurcating \code{phylo} tree.}
 
 \item{bifurcated_tree}{A binary resolution with identical ordered tips.}
 

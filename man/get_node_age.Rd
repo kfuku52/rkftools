@@ -7,7 +7,7 @@
 get_node_age(phy, node_num)
 }
 \arguments{
-\item{phy}{An ultrametric `phylo` tree.}
+\item{phy}{An ultrametric \code{phylo} tree.}
 
 \item{node_num}{A single integer node number.}
 }
