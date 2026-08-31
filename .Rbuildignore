@@ -9,3 +9,6 @@
 ^LICENSE\.md$
 ^AGENTS\.md$
 ^Makefile$
+^\.local$
+^benchmark$
+^docs$

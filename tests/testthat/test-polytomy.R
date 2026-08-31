@@ -143,7 +143,9 @@ test_that("unrooted binary trees retain binary transformation behavior", {
     expect_false(contains_polytomy(tree))
 
     padded <- pad_short_edges(tree, threshold=0.5, external_only=TRUE)
-    expect_equal(padded$edge.length, c(0.2, 0.5, 1.1, 0.8, 0.9))
+    expect_equal(padded$edge.length, c(0, 0.5, 1.1, 1, 1.1))
+    expect_equal(ape::node.depth.edgelength(padded)[1:4] -
+        ape::node.depth.edgelength(tree)[1:4], rep(0.2, 4))
 
     expected_ultrametric <- ape::chronoMPL(tree)
     actual_ultrametric <- force_ultrametric(

@@ -143,85 +143,29 @@ get_duplication_confidence_score = function(phy, node_num, species_parser='legac
     species_parser='legacy',
     sep='_'
 ) {
-    tip_count = length(phy[['tip.label']])
-    if (tip_count == 0) {
-        return(0)
-    }
-
-    edges = phy[['edge']]
-    if (!nrow(edges)) {
-        return(0)
-    }
-    children_by_parent = split(edges[,2], edges[,1])
-    if (!length(children_by_parent)) {
-        return(0)
-    }
-
+    index = .build_phy_index(phy)
+    tip_count = index[['num_tip']]
     if (is.null(species_id_by_label)) {
         tip_species_ids = unname(.tip_species_id_map(
-            tip_labels=phy[['tip.label']],
-            species_parser=species_parser,
-            sep=sep
+            phy[['tip.label']], species_parser=species_parser, sep=sep
         ))
     } else {
         tip_species_ids = as.integer(species_id_by_label[phy[['tip.label']]])
         if (anyNA(tip_species_ids)) {
-            tip_species_ids = unname(.tip_species_id_map(
-                tip_labels=phy[['tip.label']],
-                species_parser=species_parser,
-                sep=sep
-            ))
+            stop('species_id_by_label must contain every tip label.')
         }
     }
-
-    max_node_id = max(edges)
-    species_cache = vector(mode='list', length=max_node_id)
-    for (tip_index in seq_len(tip_count)) {
-        species_cache[[tip_index]] = tip_species_ids[tip_index]
-    }
-
-    resolve_species = function(node_num) {
-        cached = species_cache[[node_num]]
-        if (!is.null(cached)) {
-            return(cached)
-        }
-
-        children_num = children_by_parent[[as.character(node_num)]]
-        if (is.null(children_num) || !length(children_num)) {
-            out = integer(0)
-        } else {
-            child_species = lapply(children_num, function(cn) {
-                resolve_species(as.integer(cn))
-            })
-            out = unique(unlist(child_species, use.names=FALSE))
-        }
-        species_cache[[node_num]] <<- out
-        out
-    }
-
-    internal_nodes = as.integer(names(children_by_parent))
-    internal_nodes = internal_nodes[internal_nodes > tip_count]
-    if (!ape::is.rooted(phy)) {
-        root_num = get_root_num(phy)
-        if (length(root_num) == 1L &&
-                length(children_by_parent[[as.character(root_num)]]) == 3L) {
-            internal_nodes = setdiff(internal_nodes, root_num)
-        }
-    }
-    if (!length(internal_nodes)) {
-        return(0)
-    }
-
+    species_cache = vector('list', index[['max_node']])
+    species_cache[seq_len(tip_count)] = as.list(tip_species_ids)
+    skip_root = !ape::is.rooted(phy) &&
+        length(index[['children']][[index[['root']]]]) == 3L
     overlap_count = 0L
-    for (node_num in internal_nodes) {
-        children_num = children_by_parent[[as.character(node_num)]]
-        if (length(children_num) < 2L) {
-            next
-        }
-
-        child_species = lapply(children_num, function(child_num) {
-            resolve_species(as.integer(child_num))
-        })
+    for (node in index[['postorder']]) {
+        if (node <= tip_count) next
+        children = index[['children']][[node]]
+        child_species = species_cache[children]
+        species_cache[[node]] = unique(unlist(child_species, use.names=FALSE))
+        if (length(children) < 2L || (skip_root && node == index[['root']])) next
         dc_score = .max_pairwise_species_overlap(child_species)
         if (!is.na(dc_score) && dc_score > dc_cutoff) {
             overlap_count = overlap_count + 1L

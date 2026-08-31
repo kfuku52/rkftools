@@ -1,5 +1,5 @@
 args <- commandArgs(trailingOnly=TRUE)
-expected_tag <- if (length(args)) args[[1]] else Sys.getenv("GITHUB_REF_NAME")
+expected_tag <- if (length(args)) args[[1]] else if (Sys.getenv("GITHUB_REF_TYPE") == "tag") Sys.getenv("GITHUB_REF_NAME") else ""
 
 description <- read.dcf("DESCRIPTION")
 version <- unname(description[[1, "Version"]])

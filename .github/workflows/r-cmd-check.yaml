@@ -2,76 +2,86 @@ name: R-CMD-check
 
 on:
   push:
-    branches:
-      - master
-      - main
+    branches: [master, main]
+    paths:
+      - 'R/**'
+      - 'tests/**'
+      - 'man/**'
+      - 'tools/**'
+      - 'DESCRIPTION'
+      - 'NAMESPACE'
+      - 'NEWS.md'
+      - 'Makefile'
+      - '.Rbuildignore'
+      - '.github/workflows/**'
   pull_request:
-    branches:
-      - master
-      - main
+    branches: [master, main]
+    paths:
+      - 'R/**'
+      - 'tests/**'
+      - 'man/**'
+      - 'tools/**'
+      - 'DESCRIPTION'
+      - 'NAMESPACE'
+      - 'NEWS.md'
+      - 'Makefile'
+      - '.Rbuildignore'
+      - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      compatibility_only:
+        description: 'Only run the five extended configurations (base checks already passed)'
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 2 * * 1'
 
 permissions:
   contents: read
 
 concurrency:
-  group: r-cmd-check-${{ github.workflow }}-${{ github.ref }}
+  group: r-cmd-check-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   R-CMD-check:
+    if: '!inputs.compatibility_only'
+    name: ubuntu-latest / R ${{ matrix.r-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - r-version: '4.1'
+            full: false
+            coverage: false
+          - r-version: release
+            full: true
+            coverage: true
+    uses: ./.github/workflows/r-check-job.yaml
+    with:
+      os: ubuntu-latest
+      r-version: ${{ matrix.r-version }}
+      full: ${{ matrix.full }}
+      coverage: ${{ matrix.coverage }}
+      as-cran: ${{ matrix.full && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+  compatibility:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: ${{ matrix.os }} / R ${{ matrix.r-version }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            r-version: "4.1"
-            force-suggests: "false"
-            optional-packages: ""
+            r-version: '4.2'
           - os: ubuntu-latest
-            r-version: "4.2"
-            force-suggests: "false"
-            optional-packages: ""
-          - os: ubuntu-latest
-            r-version: "4.3"
-            force-suggests: "false"
-            optional-packages: ""
-          - os: ubuntu-latest
-            r-version: release
-            force-suggests: "true"
-            optional-packages: |-
-              any::PhylogeneticEM
-              any::Rphylopars
+            r-version: '4.3'
           - os: ubuntu-latest
             r-version: devel
-            force-suggests: "false"
-            optional-packages: ""
           - os: macos-latest
             r-version: release
-            force-suggests: "false"
-            optional-packages: ""
           - os: windows-latest
             r-version: release
-            force-suggests: "false"
-            optional-packages: ""
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    name: ${{ matrix.os }} / R ${{ matrix.r-version }}
-    env:
-      _R_CHECK_FORCE_SUGGESTS_: ${{ matrix.force-suggests }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
-        with:
-          r-version: ${{ matrix.r-version }}
-      - uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
-        with:
-          extra-packages: |
-            any::rcmdcheck
-            any::covr
-            any::testthat
-            ${{ matrix.optional-packages }}
-          dependencies: '"hard"'
-          needs: check
-      - uses: r-lib/actions/check-r-package@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
-        with:
-          args: 'c("--no-manual")'
+    uses: ./.github/workflows/r-check-job.yaml
+    with:
+      os: ${{ matrix.os }}
+      r-version: ${{ matrix.r-version }}

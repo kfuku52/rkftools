@@ -1,0 +1,59 @@
+name: Reusable R check
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      r-version:
+        required: true
+        type: string
+      full:
+        default: false
+        type: boolean
+      coverage:
+        default: false
+        type: boolean
+      as-cran:
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 40
+    env:
+      _R_CHECK_FORCE_SUGGESTS_: ${{ inputs.full && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          r-version: ${{ inputs.r-version }}
+      - uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          extra-packages: |
+            any::rcmdcheck
+            any::testthat
+            any::withr
+          dependencies: ${{ inputs.full && '"all"' || '"hard"' }}
+          needs: check
+      - name: Validate release metadata
+        run: Rscript tools/release-check.R
+      - uses: r-lib/actions/check-r-package@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
+        with:
+          args: ${{ inputs.as-cran && 'c("--as-cran", "--no-manual")' || 'c("--no-manual")' }}
+          upload-results: never
+      - name: Enforce coverage floor in the same environment
+        if: inputs.coverage
+        run: Rscript tools/coverage.R 80
+      - name: Keep failed check logs briefly
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: check-${{ inputs.os }}-R-${{ inputs.r-version }}
+          path: check
+          retention-days: 5

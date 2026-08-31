@@ -5,3 +5,5 @@
 R/.ipynb_checkpoints/
 rkftools.Rcheck/
 rkftools_*.tar.gz
+.local/
+benchmark/

@@ -2,16 +2,21 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ['v*']
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      _R_CHECK_FORCE_SUGGESTS_: 'true'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
@@ -20,13 +25,28 @@ jobs:
       - uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
         with:
           extra-packages: any::rcmdcheck
-          dependencies: '"hard"'
+          dependencies: '"all"'
           needs: check
       - name: Validate release metadata
         run: Rscript tools/release-check.R "$GITHUB_REF_NAME"
-      - name: Build package
+      - name: Build the release tarball
         run: R CMD build --no-build-vignettes .
-      - name: Create GitHub release
+      - name: Check the exact artifact to be published, including optional integrations
+        shell: Rscript {0}
+        run: |
+          version <- read.dcf('DESCRIPTION')[1, 'Version']
+          tarball <- paste0('rkftools_', version, '.tar.gz')
+          rcmdcheck::rcmdcheck(tarball, args='--no-manual', error_on='warning', check_dir='check')
+      - name: Create GitHub release only after the tarball passes
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" rkftools_*.tar.gz --generate-notes --verify-tag
+        run: |
+          version=$(Rscript -e 'cat(read.dcf("DESCRIPTION")[1,"Version"])')
+          gh release create "$GITHUB_REF_NAME" "rkftools_${version}.tar.gz" --generate-notes --verify-tag
+      - name: Keep failed check logs briefly
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-check
+          path: check
+          retention-days: 5

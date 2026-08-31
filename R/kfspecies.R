@@ -129,3 +129,115 @@
     }
     list(species_labels=species_labels, parsed_ok=parsed_ok)
 }
+
+#' Parse species names from labels
+#'
+#' @param a One or more labels.
+#' @param species_parser Species-label convention.
+#' @param sep Literal input separator.
+#' @return Species names separated by spaces.
+#' @examples
+#' get_species_name("Homo_sapiens_gene1")
+#' get_species_name("Genus_cf_species_gene1", species_parser="taxonomic")
+#' @export
+get_species_name = function(a, species_parser='legacy', sep='_') {
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    parsed = .parse_species_labels(
+        labels=a,
+        species_parser=species_parser,
+        sep=sep,
+        output_sep=' ',
+        require_gene=FALSE,
+        fallback_label=TRUE
+    )
+    return(parsed[['species_labels']])
+}
+
+
+#' Parse species names from tree tips
+#'
+#' @param phy A `phylo` tree.
+#' @param sep Literal input and output separator.
+#' @param species_parser Species-label convention.
+#' @return A character vector aligned with tree tips.
+#' @export
+get_species_names = function(phy, sep='_', species_parser='legacy') {
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    parsed = .parse_species_labels(
+        labels=phy[['tip.label']],
+        species_parser=species_parser,
+        sep=sep,
+        output_sep=sep,
+        require_gene=FALSE,
+        fallback_label=FALSE
+    )
+    species_names = parsed[['species_labels']]
+    if (any(!parsed[['parsed_ok']])) {
+        bad_labels = phy[['tip.label']][!parsed[['parsed_ok']]]
+        warning(
+            'Leaf name(s) could not be interpreted with species_parser="',
+            species_parser, '": ', paste(bad_labels, collapse=', '),
+            call.=FALSE
+        )
+    }
+    return(species_names)
+}
+
+
+#' Convert gene-bearing leaf labels to species names
+#'
+#' @param leaf_names Gene-bearing leaf labels.
+#' @param use_underbar Whether output species names retain underscores.
+#' @param species_parser Species-label convention.
+#' @param sep Literal input separator.
+#' @return Parsed species names, with `NA` for malformed labels.
+#' @export
+leaf2species = function(leaf_names, use_underbar=FALSE, species_parser='legacy', sep='_') {
+    use_underbar = .normalize_single_logical_arg(
+        value=use_underbar,
+        arg_name='use_underbar'
+    )
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    parsed = .parse_species_labels(
+        labels=leaf_names,
+        species_parser=species_parser,
+        sep=sep,
+        output_sep=if (use_underbar) '_' else ' ',
+        require_gene=TRUE,
+        fallback_label=FALSE
+    )
+    species_names = parsed[['species_labels']]
+    if (any(!parsed[['parsed_ok']])) {
+        bad_labels = leaf_names[!parsed[['parsed_ok']]]
+        warning(
+            'Leaf name(s) could not be interpreted as species-bearing labels with species_parser="',
+            species_parser, '": ', paste(bad_labels, collapse=', '),
+            call.=FALSE
+        )
+    }
+    return(species_names)
+}

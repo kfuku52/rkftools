@@ -1,3 +1,23 @@
+# rkftools 0.1.11
+
+- Preserve root-to-tip distances when padding short branches, propagating length
+  transfers through every ancestor for unary, binary, and multifurcating trees.
+  If necessary, extend all finite root-to-tip paths by the same amount.
+- Validate phylo node roles, numbering, connectivity, and parent relationships
+  before traversal. Score deep trees iteratively without recursion limits.
+- Preserve imputed missing cells, handle single-row replicate matrices, and
+  retain numeric trait columns and species-only labels in optional integrations.
+- Keep all original tips and consistent edge indices in MAD full/custom results
+  with zero-distance duplicates. Support complete-clade and unary node mapping.
+- Fix custom branch-table column names. Reuse integer tree indices and descendant
+  caches for table conversion and count root partitions without per-edge strings.
+- Split tree, trait, and model internals into focused modules without changing
+  public exports. Move all smoke regressions into the standard testthat suite.
+- Add real optional-backend fixtures, source-aware development commands, repeated
+  correctness-checked benchmarks, and isolated dependency setup.
+- Share release-R checks and coverage in CI, retain the full compatibility matrix
+  on scheduled/manual runs, and check the release tarball before publication.
+
 # rkftools 0.1.10
 
 - Preserve zero-length root edges so root polytomies remain rooted across

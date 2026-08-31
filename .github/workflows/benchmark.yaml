@@ -2,14 +2,24 @@ name: Benchmark
 
 on:
   workflow_dispatch:
+    inputs:
+      max_ratio:
+        description: 'Maximum median time ratio versus the previous successful benchmark'
+        type: string
+        default: '2.0'
   schedule:
-    - cron: "41 4 * * 1"
+    - cron: '41 4 * * 1'
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  root-mapping:
+  benchmark:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -19,8 +29,38 @@ jobs:
           r-version: release
       - uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6
         with:
+          extra-packages: any::pkgload
           dependencies: '"hard"'
-      - name: Install package
-        run: R CMD INSTALL .
-      - name: Run benchmarks
-        run: Rscript tools/benchmark.R
+      - name: Retrieve the previous successful benchmark when available
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous_run=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/benchmark.yaml/runs" \
+            -f status=success -f branch="$GITHUB_REF_NAME" -f per_page=1 --jq '.workflow_runs[0].id // empty')
+          if [ -n "$previous_run" ]; then
+            artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$previous_run/artifacts" \
+              --jq '.artifacts[] | select(.name == "benchmark-results" and .expired == false) | .id')
+            if [ -n "$artifact" ]; then
+              gh run download "$previous_run" --name benchmark-results --dir .local/benchmark-baseline
+            fi
+          fi
+      - name: Benchmark this checkout and record process peak RSS
+        env:
+          MAX_RATIO: ${{ inputs.max_ratio || '2.0' }}
+        run: |
+          benchmark_args=()
+          if [ -f .local/benchmark-baseline/results.csv ]; then
+            benchmark_args+=(--baseline=.local/benchmark-baseline/results.csv)
+          else
+            echo 'No retained baseline; this successful run will establish one.'
+          fi
+          mkdir -p benchmark
+          /usr/bin/time -v -o benchmark/process.txt Rscript tools/benchmark.R \
+            "${benchmark_args[@]}" --max-ratio="$MAX_RATIO"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: benchmark-results
+          path: benchmark/
+          if-no-files-found: ignore
+          retention-days: 14

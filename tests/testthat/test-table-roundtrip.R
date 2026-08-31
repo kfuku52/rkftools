@@ -42,3 +42,14 @@ test_that("non-finite branch lengths are rejected", {
     expect_error(phylo2table(phy), "finite")
     expect_error(get_single_branch_tree("A", Inf), "finite")
 })
+test_that("custom column names cannot overwrite one another", {
+    tree <- ape::read.tree(text="((A:1,B:1):1,C:2);")
+    for (cols in list(c("dist", "length"), c("dist", "label"))) {
+        tbl <- phylo2table(tree, cols[[1]], cols[[2]])
+        expect_identical(names(tbl), c("branch_id", "parent", "sister", cols))
+        restored <- table2phylo(tbl, cols[[1]], cols[[2]])
+        expect_equal(ape::cophenetic.phylo(restored), ape::cophenetic.phylo(tree))
+    }
+    expect_error(phylo2table(tree, "parent", "dist"), "name_col")
+    expect_error(table2phylo(phylo2table(tree), "label", "parent"), "dist_col")
+})
