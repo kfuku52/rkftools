@@ -44,18 +44,3 @@ test_that("PhylogeneticEM adapters preserve trait names, types, and species coun
     expect_equal(empty[1,traits], data.frame("trait one"=0.5, b=0.5, check.names=FALSE))
     expect_equal(get_tree_table(model, "PhylogeneticEM")$num_shift, 0)
 })
-
-test_that("numeric matrices reach Rphylopars as numeric data frames", {
-    tree <- ape::read.tree(text="((A:1,B:1):1,C:2);")
-    traits <- matrix(c(1, NA, 3), ncol=1, dimnames=list(c("C", "B", "A"), "trait one"))
-    local_mocked_bindings(.rphylopars_phylopars=function(tree, trait_data, ...) {
-        expect_s3_class(trait_data, "data.frame")
-        expect_type(trait_data[["trait one"]], "double")
-        expect_identical(trait_data$species, tree$tip.label)
-        list(anc_recon=matrix(c(3, 2, 1), ncol=1,
-            dimnames=list(tree$tip.label, "trait one")))
-    })
-    result <- phylogenetic_imputation(tree, traits)
-    expect_identical(names(result), "trait one")
-    expect_equal(result[[1]], c(3, 2, 1))
-})

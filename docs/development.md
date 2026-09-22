@@ -45,7 +45,8 @@ package version before pushing, following the repository policy.
 All tests live in `tests/testthat/`. The previous `tests/smoke.R` assertions are
 organized by feature and run through both `make test` and `R CMD check`.
 `helper-fixtures.R` provides small, independent starting trees. Backend adapters
-also have lightweight tests for types, names, missing cells, and zero shifts.
+also have focused contracts for trait alignment, missing cells, and zero shifts.
+See the [test audit](test-audit.md) for the 0.1.13 consolidation decisions.
 
 `fixtures/phyloem-fit.rds` contains real PhylogeneticEM fits: two traits with no
 selected shift, a selected shift, and a univariate model. The data are synthetic

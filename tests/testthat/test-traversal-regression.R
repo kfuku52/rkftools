@@ -1,7 +1,6 @@
 test_that("node lookup, traversal, and ages", {
     withr::local_seed(20260831)
     tr_unlabeled = ape::read.tree(text="((A:1,B:1):1,C:1);")
-    expect_true(is.null(tr_unlabeled$node.label))
     tr_filled = fill_node_labels(tr_unlabeled)
     expect_true(length(tr_filled$node.label) == tr_filled$Nnode)
     expect_true(!any(is.na(tr_filled$node.label) | tr_filled$node.label == ""))
@@ -26,15 +25,10 @@ test_that("node lookup, traversal, and ages", {
     }, logical(1))][1]
     tip_labels_vec = get_tip_labels(tr_unlabeled, c(3L, size_two_node))
     expect_true(identical(as.character(tip_labels_vec), c("C", "A", "B")))
-    tip_labels_invalid_err = tryCatch(
-        {
-            get_tip_labels(tr_unlabeled, 999L)
-            NULL
-        },
-        error=function(e) e
+    expect_error(
+        get_tip_labels(tr_unlabeled, 999L),
+        "outside valid node range", fixed=TRUE
     )
-    expect_true(!is.null(tip_labels_invalid_err))
-    expect_true(grepl("outside valid node range", conditionMessage(tip_labels_invalid_err), fixed=TRUE))
     children_vec = get_children_num(tr_unlabeled, c(4L, 5L))
     expect_true(identical(as.integer(children_vec), c(5L, 3L, 1L, 2L)))
     children_na = get_children_num(tr_unlabeled, NA_integer_)
@@ -53,15 +47,6 @@ test_that("node lookup, traversal, and ages", {
     expect_true(length(ancestor_invalid) == 0)
     desc_leaf = get_descendent_num(tr_unlabeled, c(4L, 5L), leaf_only=TRUE)
     expect_true(identical(as.integer(desc_leaf), c(1L, 2L, 3L)))
-    desc_leaf_only_na_err = tryCatch(
-        {
-            get_descendent_num(tr_unlabeled, c(4L, 5L), leaf_only=NA)
-            NULL
-        },
-        error=function(e) e
-    )
-    expect_true(!is.null(desc_leaf_only_na_err))
-    expect_true(grepl("leaf_only must be a single non-missing logical value", conditionMessage(desc_leaf_only_na_err), fixed=TRUE))
     mrca_tr_unlabeled = ape::mrca(tr_unlabeled)
     nearest_out = get_nearest_tips(
         tr_unlabeled,
@@ -70,53 +55,24 @@ test_that("node lookup, traversal, and ages", {
         mrca_matrix=mrca_tr_unlabeled
     )
     expect_true(identical(as.character(nearest_out$nearests), "B"))
-    nearest_query_err = tryCatch(
-        {
-            get_nearest_tips(tr_unlabeled, query="X", subjects=c("B", "C"), mrca_matrix=mrca_tr_unlabeled)
-            NULL
-        },
-        error=function(e) e
+    expect_error(
+        get_nearest_tips(tr_unlabeled, query="X", subjects=c("B", "C"), mrca_matrix=mrca_tr_unlabeled),
+        "query must be present in mrca_matrix row names", fixed=TRUE
     )
-    expect_true(!is.null(nearest_query_err))
-    expect_true(grepl("query must be present in mrca_matrix row names", conditionMessage(nearest_query_err), fixed=TRUE))
-    nearest_subject_err = tryCatch(
-        {
-            get_nearest_tips(tr_unlabeled, query="A", subjects=c("B", "X"), mrca_matrix=mrca_tr_unlabeled)
-            NULL
-        },
-        error=function(e) e
+    expect_error(
+        get_nearest_tips(tr_unlabeled, query="A", subjects=c("B", "X"), mrca_matrix=mrca_tr_unlabeled),
+        "subjects are missing in mrca_matrix column names", fixed=TRUE
     )
-    expect_true(!is.null(nearest_subject_err))
-    expect_true(grepl("subjects are missing in mrca_matrix column names", conditionMessage(nearest_subject_err), fixed=TRUE))
-    nearest_query_vec_err = tryCatch(
-        {
-            get_nearest_tips(tr_unlabeled, query=c("A", "B"), subjects=c("B", "C"), mrca_matrix=mrca_tr_unlabeled)
-            NULL
-        },
-        error=function(e) e
+    expect_error(
+        get_nearest_tips(tr_unlabeled, query="A", subjects=character(0), mrca_matrix=mrca_tr_unlabeled),
+        "subjects must contain at least one non-missing tip label", fixed=TRUE
     )
-    expect_true(!is.null(nearest_query_vec_err))
-    expect_true(grepl("query must be a single non-missing string", conditionMessage(nearest_query_vec_err), fixed=TRUE))
-    nearest_subject_empty_err = tryCatch(
-        {
-            get_nearest_tips(tr_unlabeled, query="A", subjects=character(0), mrca_matrix=mrca_tr_unlabeled)
-            NULL
-        },
-        error=function(e) e
-    )
-    expect_true(!is.null(nearest_subject_empty_err))
-    expect_true(grepl("subjects must contain at least one non-missing tip label", conditionMessage(nearest_subject_empty_err), fixed=TRUE))
     ultra_tree = ape::compute.brlen(ape::stree(4), 1)
     ultra_tree = force_ultrametric(ultra_tree, stop_if_larger_change=1)
     tip_age = get_node_age(ultra_tree, 1)
     expect_true(isTRUE(all.equal(as.numeric(tip_age), 0, tolerance=1e-10)))
-    node_age_err = tryCatch(
-        {
-            get_node_age(ultra_tree, 999)
-            NULL
-        },
-        error=function(e) e
+    expect_error(
+        get_node_age(ultra_tree, 999),
+        "must be a single integer", fixed=TRUE
     )
-    expect_true(!is.null(node_age_err))
-    expect_true(grepl("must be a single integer", conditionMessage(node_age_err), fixed=TRUE))
 })

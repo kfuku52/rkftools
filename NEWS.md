@@ -1,3 +1,10 @@
+# rkftools 0.1.13
+
+- Consolidate redundant regression cases, repeated shared-validator checks, and
+  shape-only smoke tests; retain topology, branch-length, alignment, and missing
+  data contracts. Replace the Rphylopars mock with reordered matrix input in its
+  real integration test and simplify error assertions.
+
 # rkftools 0.1.12
 
 - Correct MAD's built-in help and document every output mode, including the

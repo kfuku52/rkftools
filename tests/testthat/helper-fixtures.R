@@ -6,7 +6,3 @@ fixture_gene_tree <- function() {
 fixture_trait_tree <- function() {
     ape::read.tree(text="((A:1,B:1):1,C:1);")
 }
-
-expect_error_contains <- function(expr, text) {
-    expect_error(force(expr), regexp=text, fixed=TRUE)
-}

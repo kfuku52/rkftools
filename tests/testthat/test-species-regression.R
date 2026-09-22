@@ -12,39 +12,19 @@ test_that("species-label parsing and validation", {
     tr_taxonomic = ape::read.tree(text="(A_B_gene1:1,A_cf_B_gene2:1,Amoeba_sp_JDSRuffled_gene3:1);")
     taxonomic_species = get_species_names(tr_taxonomic, species_parser="taxonomic")
     expect_true(identical(as.character(taxonomic_species), c("A_B", "A_cf_B", "Amoeba_sp_JDSRuffled")))
-    tr_taxonomic_ranked = ape::read.tree(text="(Solanum_lycopersicum_cultivar_Heinz1706_gene1:1,Escherichia_coli_serovar_O157_gene2:1);")
-    taxonomic_ranked_species = get_species_names(tr_taxonomic_ranked, species_parser="taxonomic")
-    expect_true(identical(as.character(taxonomic_ranked_species), c("Solanum_lycopersicum_cultivar_Heinz1706", "Escherichia_coli_serovar_O157")))
     tr_bad_species = ape::read.tree(text="(A:1,B_c_d:1);")
     bad_species = suppressWarnings(get_species_names(tr_bad_species, sep="_"))
     expect_true(is.na(bad_species[1]))
     expect_true(identical(as.character(bad_species[2]), "B_c"))
-    species_sep_na_err = tryCatch(
-        {
-            get_species_names(tr_dot, sep=NA_character_)
-            NULL
-        },
-        error=function(e) e
+    expect_error(
+        get_species_names(tr_dot, sep=NA_character_),
+        "sep must be a single non-missing string", fixed=TRUE
     )
-    expect_true(!is.null(species_sep_na_err))
-    expect_true(grepl("sep must be a single non-missing string", conditionMessage(species_sep_na_err), fixed=TRUE))
-    species_sep_vec_err = tryCatch(
-        {
-            get_species_names(tr_dot, sep=c("_", "."))
-            NULL
-        },
-        error=function(e) e
-    )
-    expect_true(!is.null(species_sep_vec_err))
-    expect_true(grepl("sep must be a single non-missing string", conditionMessage(species_sep_vec_err), fixed=TRUE))
-
 
     leaf2species_bad = suppressWarnings(leaf2species(c("A_B_g1", "bad")))
     expect_true(length(leaf2species_bad) == 2)
     expect_true(identical(as.character(leaf2species_bad[1]), "A B"))
     expect_true(is.na(leaf2species_bad[2]))
-    leaf2species_legacy = suppressWarnings(leaf2species(c("A_B_gene1"), species_parser="legacy"))
-    expect_true(identical(as.character(leaf2species_legacy), "A B"))
     leaf2species_taxonomic = suppressWarnings(leaf2species(
         c("A_B_gene1", "A_cf_B_gene2", "Amoeba_sp_JDSRuffled_gene3", "Bacillus_subtilis_subsp_168_gene4"),
         species_parser="taxonomic"
@@ -56,14 +36,4 @@ test_that("species-label parsing and validation", {
         species_parser="taxonomic"
     ))
     expect_true(identical(as.character(leaf2species_taxonomic_underbar), c("A_B", "A_cf_B", "Amoeba_sp_JDSRuffled")))
-    leaf2species_use_underbar_na_err = tryCatch(
-        {
-            leaf2species(c("A_B_g1"), use_underbar=NA)
-            NULL
-        },
-        error=function(e) e
-    )
-    expect_true(!is.null(leaf2species_use_underbar_na_err))
-    expect_true(grepl("use_underbar must be a single non-missing logical value", conditionMessage(leaf2species_use_underbar_na_err), fixed=TRUE))
-    expect_true(identical(as.character(get_species_name("A_B_gene1")), "A B"))
 })

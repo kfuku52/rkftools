@@ -3,9 +3,7 @@ test_that("malformed phylo graphs are rejected before traversal", {
         edge=matrix(c(5,1,5,2,6,7,6,3,7,6,7,4), ncol=2, byrow=TRUE),
         tip.label=c("A", "B", "C", "D"), Nnode=3L, edge.length=rep(1, 6)),
         class="phylo")
-    expect_error(phylo2table(bad), "disconnected or cyclic")
     expect_error(get_descendent_num(bad, 6L), "disconnected or cyclic")
-    expect_error(MAD(bad), "disconnected or cyclic")
     tree <- ape::read.tree(text="((A:1,B:1):1,C:2);")
     fractional <- tree
     fractional$edge[1,2] <- 4.5

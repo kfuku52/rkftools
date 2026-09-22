@@ -14,7 +14,6 @@ test_that("unary nodes map in ancestor order without conflating tips", {
     reordered <- ape::reorder.phylo(tree, "postorder")
     expect_identical(map_node_num(tree, reordered), result)
     clade <- get_parent_num(tree, match("A", tree$tip.label))
-    traits <- data.frame(value=seq_along(tree$tip.label), row.names=tree$tip.label)
     # A named collapse map also distinguishes an internal unary node from A.
     collapsed <- tree
     collapsed$tip.label[[1]] <- as.character(clade)

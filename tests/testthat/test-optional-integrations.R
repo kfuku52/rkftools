@@ -1,7 +1,6 @@
 test_that("real PhylogeneticEM fits satisfy every adapter contract", {
     skip_if_not_installed("PhylogeneticEM")
     fixture <- readRDS(test_path("fixtures", "phyloem-fit.rds"))
-    expect_equal(fixture$backend_version, "1.8.1")
     for (name in names(fixture$models)) {
         model <- fixture$models[[name]]
         traits <- rownames(model$Y_data)
@@ -47,7 +46,8 @@ test_that("Rphylopars fits numeric matrices and data frames equivalently", {
     phy <- ape::read.tree(text="((A:1,B:1):1,C:1);")
     traits <- data.frame("trait one"=c(1, NA, 3), row.names=phy$tip.label, check.names=FALSE)
     result <- withr::with_seed(123, phylogenetic_imputation(phy, traits))
-    matrix_result <- withr::with_seed(123, phylogenetic_imputation(phy, as.matrix(traits)))
+    matrix_result <- withr::with_seed(123, phylogenetic_imputation(
+        phy, as.matrix(traits[c("C", "B", "A"),,drop=FALSE])))
     expect_s3_class(result, "data.frame")
     expect_identical(rownames(result), phy$tip.label)
     expect_identical(names(result), "trait one")

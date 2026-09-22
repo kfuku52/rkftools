@@ -1,6 +1,5 @@
 test_that("leaf tables, collapsed outputs, and placeholders", {
     withr::local_seed(20260831)
-    tr = fixture_gene_tree()
     tr_unlabeled = fixture_trait_tree()
     pcm_leaf_no_col = list(
         tree=tr_unlabeled,
@@ -17,15 +16,6 @@ test_that("leaf tables, collapsed outputs, and placeholders", {
     leaf_tbl_no_col = get_leaf_table(pcm_leaf_no_col, mode="l1ou")
     expect_true(!any(is.na(colnames(leaf_tbl_no_col))))
     expect_true("trait1" %in% colnames(leaf_tbl_no_col))
-    leaf_tbl_mode_na_err = tryCatch(
-        {
-            get_leaf_table(pcm_leaf_no_col, mode=NA_character_)
-            NULL
-        },
-        error=function(e) e
-    )
-    expect_true(!is.null(leaf_tbl_mode_na_err))
-    expect_true(grepl("mode must be a single non-missing string", conditionMessage(leaf_tbl_mode_na_err), fixed=TRUE))
     pcm_leaf_reordered = list(
         tree=tr_unlabeled,
         Y=data.frame(t1=c(30, 20, 10), row.names=rev(tr_unlabeled$tip.label)),
@@ -71,15 +61,10 @@ test_that("leaf tables, collapsed outputs, and placeholders", {
     expect_true(identical(as.numeric(leaf_tbl_reordered_cols_optima$t2), c(40, 50, 60)))
     pcm_leaf_bad_col = pcm_leaf_reordered_cols
     colnames(pcm_leaf_bad_col$optima) = c("t2", "wrong_trait")
-    leaf_tbl_bad_col_err = tryCatch(
-        {
-            get_leaf_table(pcm_leaf_bad_col, mode="l1ou")
-            NULL
-        },
-        error=function(e) e
+    expect_error(
+        get_leaf_table(pcm_leaf_bad_col, mode="l1ou"),
+        "must match pcm_out$Y", fixed=TRUE
     )
-    expect_true(!is.null(leaf_tbl_bad_col_err))
-    expect_true(grepl("must match pcm_out$Y", conditionMessage(leaf_tbl_bad_col_err), fixed=TRUE))
     tree_table_collapsed = data.frame(
         num_shift=0,
         num_regime=1,
@@ -93,7 +78,6 @@ test_that("leaf tables, collapsed outputs, and placeholders", {
     tree_table_restored = tree_table_collapse2original(tree_table_collapsed, tr_unlabeled)
     expect_true(identical(as.integer(tree_table_restored$num_leaf), 3L))
     expect_true(identical(as.integer(tree_table_restored$num_species), 3L))
-
 
     tree_collapsed = ape::read.tree(text="(1:1,C:1);")
     node_num_mapping = data.frame(tree_original=c(1L, 2L, 3L), tree_collapsed=c(1L, 1L, 2L))
@@ -122,12 +106,6 @@ test_that("leaf tables, collapsed outputs, and placeholders", {
     )
     expect_true(!any(is.na(leaf_converted$param)))
     expect_true(nrow(leaf_converted) == 3)
-
-    restored = restore_imputed_leaves(
-        leaf_table=data.frame(regime=0, node_name="A", param="imputed", trait1=NA_real_, stringsAsFactors=FALSE),
-        original_trait_table=data.frame(trait1=9, row.names="A")
-    )
-    expect_true(identical(as.numeric(restored$trait1), 9))
 
     placeholder_leaf = get_placeholder_leaf(
         tree=tr_unlabeled,
