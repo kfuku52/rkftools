@@ -1,6 +1,8 @@
 DEV_LIB ?= .local/R-library
 export RKFTOOLS_DEV_LIBRARY := $(abspath $(DEV_LIB))
 export R_LIBS := $(abspath $(DEV_LIB))$(if $(R_LIBS),:$(R_LIBS))
+TEST_FILTER ?=
+export RKFTOOLS_TEST_FILTER := $(TEST_FILTER)
 BENCHMARK_ARGS ?=
 
 .PHONY: setup setup-minimal test coverage check check-full check-as-cran document figures benchmark release-check

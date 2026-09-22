@@ -1,3 +1,10 @@
+# rkftools 0.1.14
+
+- Add repository-specific agent guidance and change-based verification routing.
+  Support focused regression runs through the existing Make/testthat entrypoint
+  while preserving unfiltered package and CI checks. Exclude agent-only files
+  from the built R package.
+
 # rkftools 0.1.13
 
 - Consolidate redundant regression cases, repeated shared-validator checks, and

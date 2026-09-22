@@ -1,14 +1,20 @@
 # Development
 
+Run all commands below from the repository root (the directory containing
+`DESCRIPTION` and `Makefile`). First check `R --version` and `Rscript --version`;
+activate an existing compatible R environment or put its bin directory on PATH
+if either is missing or has the wrong CPU architecture. `make setup-minimal`
+installs R packages, not R itself. No CONTRIBUTING, lockfile, container, separate
+lint target, or static type-check configuration is maintained here.
+
 Use a working R installation with matching C/C++ and Fortran toolchains when
 installing the optional backends from source. Required runtime packages remain
 `ape` and `phytools`; development tools and backend packages are Suggests.
 
 ```sh
-make setup          # All direct runtime, development, and optional dependencies
-make test           # Every regression, including the former smoke tests
-make check-full     # Build and check with all Suggests required
-make coverage       # Enforce the 80% coverage floor
+make setup-minimal  # Runtime and development packages, excluding optional backends
+make test           # Every regression; absent optional backends explicitly skip
+make check          # Build/check; permits absent Suggests
 ```
 
 Setup adds missing packages to `.local/R-library`, which is ignored by Git and
@@ -21,8 +27,9 @@ directly. The coverage script uses R's standard library paths instead: run
 `make coverage`, or set `R_LIBS` to the development library for a standalone
 `Rscript tools/coverage.R` invocation.
 
-For a smaller environment, run `make setup-minimal` and `make check`. Optional
-backend tests explicitly skip when those packages are absent; adapter contract
+Setup requires network access only for missing packages; review missing
+dependencies before starting an installation. `make setup` also installs
+PhylogeneticEM and Rphylopars. Optional backend tests explicitly skip when those packages are absent; adapter contract
 tests still run without them. `make check-full` and `make check-as-cran` require
 all Suggests, matching the strict CI configuration. Missing dependencies are
 errors in those checks, not silent skips.
@@ -39,6 +46,58 @@ existing runtime dependencies are needed.
 `make release-check` checks DESCRIPTION, NEWS, and the README badge. An explicit
 tag argument to `tools/release-check.R` also verifies the tag version. Bump the
 package version before pushing, following the repository policy.
+
+## Choose verification for the change
+
+`make test` loads this checkout, uses small synthetic inputs, and does not
+fetch data or regenerate fitted fixtures. Installed optional backends are
+exercised too (Rphylopars performs small fits). For a focused iteration use
+`make test TEST_FILTER='table-roundtrip|branch-tables'`: the filter is a regex
+on test filenames without `test-` and `.R`. An empty filter runs everything;
+no matching files, failed assertions, and unexpected warnings fail the command.
+For direct execution, use `RKFTOOLS_TEST_FILTER` with `Rscript tools/test.R`.
+Filtering does not alter `R CMD check` or CI coverage.
+
+| Changed area | Focused `TEST_FILTER` starting point |
+| --- | --- |
+| Branch-table conversion | `table-roundtrip|branch-tables` |
+| Shared tree indexing, traversal, labels | `tree-structure|traversal|validation|root-mapping|collapse-mapping|table-roundtrip` |
+| Branch transforms, collapse | `branch-length|edge-padding|polytomy|clade-collapse|collapse-mapping` |
+| Rooting, MAD, reconciliation | `rooting|root-mapping|mad-contract|reconciliation` |
+| Species/foreground, traits | `species|foreground|traits|trait-contracts` |
+| Model adapters or imputation | `l1ou|leaf-tables|bootstrap|trait-contracts|optional-integrations` |
+| Argument parsing or NOTUNG input | `io-` |
+
+These are starting points, not coverage guarantees: read affected callers and
+contracts, add a regression for changed behavior, then run unfiltered
+`make test` for R/test/runner changes. Backend changes require their real
+`optional-integrations` tests without missing-package skips.
+
+For delivery of R code, tests, test tooling, package metadata, or generated
+help, run `make check-full` and `make coverage` (80% floor) when all Suggests
+are available. If dependencies are missing, run `make check`, report the
+missing checks/skips, and leave full validation to the existing CI; do not
+relax thresholds or silently treat minimal validation as full validation.
+Plain prose/Skill edits need link/command review and execution of newly
+introduced procedures, not fixture regeneration. Before a push, also run
+`make release-check` after synchronizing DESCRIPTION, NEWS, and the README
+version badge. `make check-as-cran` is the extended scheduled/manual check,
+not the routine local iteration command.
+
+Successful tests have no failures or unexpected warnings. Package checks
+should have no errors or warnings; inspect and report any NOTEs. Coverage
+must meet the printed floor and release-check must report consistent metadata.
+There is no separate lint/type command; package checking covers R code
+analysis, help consistency, and examples. Tests use temporary files for I/O.
+Existing `make check*` targets write ignored tarballs and `rkftools.Rcheck/`
+inside the working directory; `.agents/` is excluded from the built package.
+Use a temporary source copy if those existing
+artifacts must be preserved; never edit generated check copies as source.
+
+Benchmarks, `--as-cran` network checks, optional dependency installation, and
+`tools/generate-phyloem-fixture.R` are separate, deliberate operations. See
+[performance](performance.md) for benchmarks. No large research dataset is
+required for routine regression checks.
 
 ## Tests and fixtures
 

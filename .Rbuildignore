@@ -12,3 +12,4 @@
 ^\.local$
 ^benchmark$
 ^docs$
+^\.agents$
