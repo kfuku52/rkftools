@@ -7,14 +7,20 @@
 table2phylo(df, name_col, dist_col)
 }
 \arguments{
-\item{df}{A non-empty branch data frame.}
+\item{df}{A non-empty data frame with \code{branch_id}, \code{parent}, \code{sister},
+and the selected label and distance columns. IDs may be numeric or
+character and must be unique and non-blank. All labels must be non-blank;
+tip labels must be unique.}
 
 \item{name_col}{Name of the node-label column.}
 
-\item{dist_col}{Name of the finite branch-length column.}
+\item{dist_col}{Name of the branch-length column. Non-root lengths must be
+finite and non-missing; a missing root distance becomes zero.}
 }
 \value{
-A rooted \code{phylo} tree. Root-row distance is stored as \code{root.edge}.
+A rooted \code{phylo} tree. Root-row distance is stored as \code{root.edge},
+except for a one-row table, which creates a single-tip tree with that
+distance on its terminal edge. Input IDs and extra columns are not retained.
 }
 \description{
 The table must describe one connected rooted tree. \code{branch_id}, \code{parent},

@@ -17,8 +17,12 @@ make test           # Every regression; absent optional backends explicitly skip
 make check          # Build/check; permits absent Suggests
 ```
 
-Setup adds missing packages to `.local/R-library`, which is ignored by Git and
-excluded from package builds. Existing libraries are not overwritten. Use
+Setup adds missing packages (and upgrades testthat when older than 3.1.8) to
+`.local/R-library`, which is ignored by Git and excluded from package builds.
+Packages in other libraries are not overwritten; an older testthat already
+in the selected development library can be replaced. This is a separate
+installation destination, not a clean dependency environment: compatible
+packages in existing library search paths are reused. Use
 `make DEV_LIB=/absolute/path/to/library ...` to choose another library. The
 Makefile exports that library for every R process while preserving existing
 library search paths. The setup, test, benchmark, fixture-generation, and
@@ -107,8 +111,8 @@ organized by feature and run through both `make test` and `R CMD check`.
 also have focused contracts for trait alignment, missing cells, and zero shifts.
 See the [test audit](test-audit.md) for the 0.1.13 consolidation decisions.
 
-`fixtures/phyloem-fit.rds` contains real PhylogeneticEM fits: two traits with no
-selected shift, a selected shift, and a univariate model. The data are synthetic
+`tests/testthat/fixtures/phyloem-fit.rds` contains real PhylogeneticEM fits:
+two traits with no selected shift, a selected shift, and a univariate model. The data are synthetic
 and deterministic. The fixture records the backend version and seed. Regenerate
 it deliberately, with all optional dependencies installed:
 

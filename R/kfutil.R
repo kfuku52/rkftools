@@ -134,6 +134,12 @@
 
 #' Parse command-line long arguments
 #'
+#' Bare flags become logical `TRUE`; numeric literals become numbers except
+#' leading-zero integers, which remain strings. Other values, including
+#' `"false"`, remain strings. Duplicate names and separate `--name value`
+#' tokens are rejected. No configuration files or environment variables are
+#' read, and application defaults and help must be implemented by the caller.
+#'
 #' @param args Character values in `--name` or `--name=value` form.
 #' @param print Whether to print parsed values. Credential-like values are
 #'   redacted when printed.

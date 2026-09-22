@@ -4,14 +4,31 @@
 
 `table2phylo()` and `phylo2table()` convert between a branch table and an
 `ape::phylo` object. Newick strings or files can be converted to and from
-`ape::phylo` with `ape::read.tree()` and `ape::write.tree()`. `branch_id`,
-`parent`, and `sister` are numerical labels. `parent` and `sister` refer to
-`branch_id`, while `node_name` stores the tip or internal-node label.
+`ape::phylo` with `ape::read.tree()` and `ape::write.tree()`. Input `branch_id`
+values may be numeric or character identifiers; `parent` and `sister` refer to
+those identifiers, not ape node numbers or edge-row indices. In this example,
+`node_name` stores the tip or internal-node label.
 `phylo2table()` returns the same schema with numerical labels generated from
 clade signatures, matching genegalleon's `numerical_label` convention.
 `table2phylo()` validates that the table describes one connected rooted tree.
 Binary children use reciprocal sister references; unary and multifurcating
 children use sister sentinels. Exact zero-length branches are preserved.
+
+The input must be a non-empty data frame with `branch_id`, `parent`, `sister`,
+and the columns explicitly selected by the required `name_col` and `dist_col`
+arguments. IDs must be unique and non-blank; all node labels must be non-blank
+and tip labels unique. Exactly one row must have a sentinel parent (`-999`,
+blank, or `NA`); that root row must also have a sentinel sister. Non-root
+lengths must be finite and non-missing. A missing root distance becomes zero;
+otherwise it is stored as `root.edge`. A one-row table instead creates a
+single-tip tree with the supplied distance on its terminal edge.
+
+`phylo2table()` defaults to `name_col="label"` and `dist_col="dist"`. It returns
+these five columns, with the root first and then one row per input edge in
+edge-row order. Missing internal labels are filled by `fill_node_labels()`.
+Input IDs and arbitrary extra columns are not retained through conversion:
+output IDs are regenerated from clades. Branch-length units are inherited
+from the input; no unit conversion is performed.
 
 ```r
 library(rkftools)
@@ -30,6 +47,11 @@ newick = ape::write.tree(tree)
 tree_from_newick = ape::read.tree(text=newick)
 roundtrip_table = phylo2table(tree_from_newick, name_col="node_name", dist_col="dist")
 ```
+
+These calls return objects in memory and create no output files or cache.
+To save Newick explicitly, use `ape::write.tree(tree, file="tree.nwk")`; the
+relative path is resolved against `getwd()` and an existing file is overwritten.
+Use an explicit output path for each result you want to retain.
 
 ![Newick, ape::phylo, and branch table conversion example](../man/figures/table2phylo_roundtrip.png)
 
@@ -74,6 +96,13 @@ one traversal of the search tree. Multifurcating target roots instead compare
 component tip sets at candidate nodes. Both paths retain `nslots` only for
 compatibility and do not create workers.
 
+`ncpu` is capped by the number of edges and `options("rkftools.max_cores")`,
+even when explicitly supplied. A nonempty `_R_CHECK_LIMIT_CORES_` other than
+`0`, `false`, or `no` adds a two-core cap. With `ncpu=NULL`, trees with fewer
+than 256 edges run serially; larger trees use up to eight physical cores,
+leaving one detected core free when possible. No package configuration file
+is read for these settings.
+
 To cap cores globally:
 ```r
 options(rkftools.max_cores = 8)
@@ -89,7 +118,49 @@ default; when printing is requested, credential-like values are redacted.
 
 Functions backed by optional packages produce an installation error naming the
 required package. Install `PhylogeneticEM` or `Rphylopars` when using their
-corresponding modes or imputation helper.
+corresponding modes or imputation helper, for example with
+`install.packages("PhylogeneticEM")` or `install.packages("Rphylopars")`. Reading
+an existing l1ou fit does not require l1ou itself; fitting a new model is an
+upstream operation, not an rkftools function.
+
+## Argument parsing and NOTUNG input
+
+`get_parsed_args(args, print=FALSE)` is a helper for caller-written scripts,
+not a package CLI. It accepts `--name=value` and bare `--flag` (logical `TRUE`),
+not separate `--name value` tokens. Numeric literals become numbers, while
+leading-zero integers such as `0012` remain strings. `--flag=false` remains
+the string `"false"`, not logical `FALSE`. Duplicate names are errors. The
+helper does not read environment variables or configuration files, supply
+application defaults, or implement `--help`; callers own those policies.
+
+`read_notung_parsable(file, mode="D")` reads existing NOTUNG output; it does
+not run NOTUNG or require its executable. Only duplication records are
+supported: each `#D` line must contain exactly three whitespace-separated
+fields, for example `#D g1 s1 s2`. Other record types are ignored. It returns
+character columns `event`, `gn_node`, `lower_sp_node`, `upper_sp_node`; no
+matching records produces a zero-row table with those same columns.
+
+## Comparative-model output tables
+
+`get_tree_table()`, `get_regime_table()`, `get_leaf_regimes()`, and
+`get_leaf_table()` require an explicit `mode="l1ou"` or
+`mode="PhylogeneticEM"`. They consume fitted objects and return data frames;
+they do not fit models or save output files.
+
+Regime and leaf tables have metadata columns `regime`, `node_name`, and
+`param`, followed by trait columns. Rows are long by parameter and wide by
+trait. For l1ou, leaf parameters are `Y`, `optima`, `mu`, and `residuals`; for
+PhylogeneticEM they are `imputed` and `expectations`. `get_leaf_regimes()`
+instead returns `regime` and `label`. The ancestral regime is `0`.
+
+The l1ou tree summary contains `num_shift`, `num_regime`, `num_conv_regime`,
+`num_uniq_regime`, `num_species`, `num_leaf`, and `model_score`; `model_score`
+is copied from the fit's `score` field, so interpret it using that fit's scoring
+criterion. The PhylogeneticEM summary contains `num_shift`, `log_likelihood`,
+`num_species`, and `num_leaf`. These scores are not interchangeable.
+`get_bootstrap_table()` supports only l1ou (its default mode) and returns
+`node_name` and `bootstrap_support`; it inserts `NA` for the root and copies
+`detection.rate` without rescaling.
 
 # Transformation contracts
 
@@ -105,6 +176,11 @@ chains in ancestor order. `collapse_clades()` records original node numbers as
 collapse-map keys; preserve those keys when passing its result to
 `map_node_num()`. A completely collapsed tree maps to its single tip, rather
 than the artificial root needed by the phylo representation.
+
+MAD takes a Newick string (not a filename) or a `phylo` object. It requires
+complete finite branch lengths and at least one positive branch. Negative
+lengths are converted to zero with a warning; an all-zero tree is rejected.
+Rooted inputs are unrooted before scoring.
 
 MAD treats zero-distance tip groups as one representative in its scoring
 objective, while preserving all tips in every returned tree. `MAD()` and

@@ -16,7 +16,11 @@ redacted when printed.}
 A named list of parsed values.
 }
 \description{
-Parse command-line long arguments
+Bare flags become logical \code{TRUE}; numeric literals become numbers except
+leading-zero integers, which remain strings. Other values, including
+\code{"false"}, remain strings. Duplicate names and separate \verb{--name value}
+tokens are rejected. No configuration files or environment variables are
+read, and application defaults and help must be implemented by the caller.
 }
 \examples{
 get_parsed_args(c("--threads=2", "--dry-run"))

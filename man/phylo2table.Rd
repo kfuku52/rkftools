@@ -15,7 +15,9 @@ phylo2table(phy, name_col = "label", dist_col = "dist")
 }
 \value{
 A branch data frame with \code{branch_id}, \code{parent}, \code{sister}, labels,
-and distances.
+and distances, with the root first followed by rows in \code{phy$edge} order.
+IDs are regenerated from clades, not recovered from an earlier input table.
+Missing internal labels are filled by \code{\link[=fill_node_labels]{fill_node_labels()}}.
 }
 \description{
 Supports rooted trees with unary, binary, or multifurcating internal nodes

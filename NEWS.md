@@ -1,3 +1,11 @@
+# rkftools 0.1.15
+
+- Clarify installation prerequisites, branch-table IDs and missing values,
+  in-memory outputs, model-table schemas, argument parsing, and parallel caps.
+  Correct development-library reuse and the fitted-fixture path.
+- Expand generated argument-parser and branch-conversion help without changing
+  runtime behavior.
+
 # rkftools 0.1.14
 
 - Add repository-specific agent guidance and change-based verification routing.

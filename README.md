@@ -1,6 +1,6 @@
 # Overview
 [![R-CMD-check](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml/badge.svg)](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml)
-[![Version](https://img.shields.io/badge/version-0.1.14-informational)](https://github.com/kfuku52/rkftools)
+[![Version](https://img.shields.io/badge/version-0.1.15-informational)](https://github.com/kfuku52/rkftools)
 [![R](https://img.shields.io/badge/R-%3E%3D%204.1.0-276DC3?logo=r)](https://www.r-project.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.md)
 [![Last commit](https://img.shields.io/github/last-commit/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/commits/master)
@@ -29,10 +29,20 @@ rkftools includes helpers for objects and outputs produced by:
 * [NOTUNG](https://www.cs.cmu.edu/~durand/Notung/) parsable output (`read_notung_parsable()`)
 
 # Installation
+
+Install R first. The command below installs the current `master` branch and
+required dependencies; optional backends are installed separately. Building R
+packages from source may require platform C/C++ and Fortran toolchains (see
+[development setup](docs/development.md)).
+
 ```r
 install.packages("remotes")
 remotes::install_github("kfuku52/rkftools", ref = "master")
 ```
+
+This is an R package, not a standalone command-line program. Start an R session
+and run the [self-contained conversion example](docs/usage.md#convert-between-newick-apephylo-and-a-branch-table);
+it returns R objects without writing files.
 
 # Documentation
 

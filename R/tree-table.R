@@ -174,10 +174,16 @@
 #' Binary children use reciprocal `sister` identifiers, while unary and
 #' multifurcating children use sister sentinels.
 #'
-#' @param df A non-empty branch data frame.
+#' @param df A non-empty data frame with `branch_id`, `parent`, `sister`,
+#'   and the selected label and distance columns. IDs may be numeric or
+#'   character and must be unique and non-blank. All labels must be non-blank;
+#'   tip labels must be unique.
 #' @param name_col Name of the node-label column.
-#' @param dist_col Name of the finite branch-length column.
-#' @return A rooted `phylo` tree. Root-row distance is stored as `root.edge`.
+#' @param dist_col Name of the branch-length column. Non-root lengths must be
+#'   finite and non-missing; a missing root distance becomes zero.
+#' @return A rooted `phylo` tree. Root-row distance is stored as `root.edge`,
+#'   except for a one-row table, which creates a single-tip tree with that
+#'   distance on its terminal edge. Input IDs and extra columns are not retained.
 #' @examples
 #' tab <- data.frame(
 #'     branch_id=c(2, 0, 1), parent=c(-999, 2, 2), sister=c(-999, 1, 0),
@@ -303,7 +309,9 @@ table2phylo = function(df, name_col, dist_col) {
 #' @param name_col Output node-label column name.
 #' @param dist_col Output branch-length column name.
 #' @return A branch data frame with `branch_id`, `parent`, `sister`, labels,
-#'   and distances.
+#'   and distances, with the root first followed by rows in `phy$edge` order.
+#'   IDs are regenerated from clades, not recovered from an earlier input table.
+#'   Missing internal labels are filled by [fill_node_labels()].
 #' @examples
 #' tree <- ape::read.tree(text="((A:1,B:1):1,C:1);")
 #' phylo2table(tree)
