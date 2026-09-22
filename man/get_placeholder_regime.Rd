@@ -9,7 +9,8 @@ get_placeholder_regime(tree, original_trait_table)
 \arguments{
 \item{tree}{A \code{phylo} tree.}
 
-\item{original_trait_table}{Original numeric trait table.}
+\item{original_trait_table}{Original numeric trait table. Trait names must
+be unique, non-blank, and distinct from \code{regime}, \code{node_name}, and \code{param}.}
 }
 \value{
 A placeholder regime table.

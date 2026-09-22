@@ -223,15 +223,10 @@ collapse_short_branches = function(tree, tol=1e-8, verbose=FALSE) {
         return(out_tree)
     }
 
-    original_signatures = .get_node_tip_signatures(out_tree)
-    original_length_by_signature = stats::setNames(
-        edge_lengths[!is_short_edge],
-        original_signatures[as.character(out_tree[['edge']][!is_short_edge,2])]
-    )
+    # Carry original edge-row IDs through contraction. Clade signatures are
+    # not unique along unary chains, even when every tip label is unique.
     working_tree = out_tree
-    protected_internal = is_internal_edge & !is_short_edge &
-        !is.na(edge_lengths) & edge_lengths <= tol
-    working_tree[['edge.length']][protected_internal] = max(1, tol * 2)
+    working_tree[['edge.length']] = as.numeric(seq_along(edge_lengths))
     working_tree[['edge.length']][is_short_edge] = 0
     if (verbose) {
         message(
@@ -239,15 +234,11 @@ collapse_short_branches = function(tree, tol=1e-8, verbose=FALSE) {
             ') were collapsed. tol = ', tol
         )
     }
-    collapsed = ape::di2multi(working_tree, tol=tol)
-    collapsed_signatures = .get_node_tip_signatures(collapsed)
-    child_signatures = collapsed_signatures[as.character(collapsed[['edge']][,2])]
-    restored_index = match(child_signatures, names(original_length_by_signature))
-    if (anyNA(restored_index)) {
-        stop('Failed to restore branch lengths after collapsing short branches.')
-    }
-    restored_lengths = unname(original_length_by_signature[restored_index])
-    collapsed[['edge.length']] = as.numeric(restored_lengths)
+    # The user's tolerance has already selected is_short_edge. This threshold
+    # only separates the zero markers from the positive edge-row IDs.
+    collapsed = ape::di2multi(working_tree, tol=0.5)
+    restored_index = as.integer(collapsed[['edge.length']])
+    collapsed[['edge.length']] = edge_lengths[restored_index]
     collapsed
 }
 

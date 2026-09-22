@@ -21,3 +21,21 @@ test_that("unary nodes map in ancestor order without conflating tips", {
     result <- map_node_num(tree, collapsed, setNames(list("A"), as.character(clade)))
     expect_equal(result$tree_collapsed[result$tree_original %in% c(1L, clade)], c(1L, 1L))
 })
+
+test_that("regime restoration uses original names for every replacement", {
+    original <- ape::read.tree(text="((A:1,B:1)7:1,(C:1,D:1)Z:1)R;")
+    collapsed <- collapse_clades(original,
+        data.frame(value=rep(1,4), row.names=original$tip.label), c(6L,7L))
+    mapping <- map_node_num(original, collapsed$tree, collapsed$collapse_leaf_names)
+    tab <- data.frame(node_name=c("6", "7", NA), param="shift_value", value=c(10,20,30))
+    result <- regime_table_collapse2original(tab, original, collapsed$tree, mapping)
+    expect_identical(result$node_name, c("7", "Z", NA_character_))
+    expect_identical(result$value, tab$value)
+    # Swapping two labels must also be simultaneous.
+    swapped <- original
+    swapped$node.label <- c("7", "R", "Z")
+    tab <- data.frame(node_name=c("R", "7"), value=c(1,2))
+    mapping <- data.frame(tree_original=1:7, tree_collapsed=1:7)
+    expect_identical(regime_table_collapse2original(tab, original, swapped, mapping)$node_name,
+        c("7", "R"))
+})

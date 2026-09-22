@@ -149,8 +149,11 @@ they do not fit models or save output files.
 
 Regime and leaf tables have metadata columns `regime`, `node_name`, and
 `param`, followed by trait columns. Rows are long by parameter and wide by
-trait. For l1ou, leaf parameters are `Y`, `optima`, `mu`, and `residuals`; for
-PhylogeneticEM they are `imputed` and `expectations`. `get_leaf_regimes()`
+trait. Trait names must be unique and non-blank and must not be `regime`,
+`node_name`, or `param`; ambiguous names are rejected rather than silently
+renamed. Unnamed l1ou columns become `trait1`, `trait2`, and so on in both
+regime and leaf tables. For l1ou, leaf parameters are `Y`, `optima`, `mu`, and
+`residuals`; for PhylogeneticEM they are `imputed` and `expectations`. `get_leaf_regimes()`
 instead returns `regime` and `label`. The ancestral regime is `0`.
 
 The l1ou tree summary contains `num_shift`, `num_regime`, `num_conv_regime`,

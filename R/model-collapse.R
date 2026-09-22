@@ -10,20 +10,7 @@
 #' @export
 tree_table_collapse2original = function(tree_table, tree_original, species_parser='legacy', sep='_') {
     num_leaf = length(tree_original$tip.label)
-    species_names = suppressWarnings(leaf2species(
-        tree_original$tip.label,
-        species_parser=species_parser,
-        sep=sep
-    ))
-    if (length(species_names) != num_leaf || !length(species_names)) {
-        species_names = tree_original$tip.label
-    } else if (anyNA(species_names)) {
-        species_names[is.na(species_names)] = tree_original$tip.label[is.na(species_names)]
-    }
-    num_species = length(unique(stats::na.omit(species_names)))
-    if (num_species == 0L) {
-        num_species = num_leaf
-    }
+    num_species = .model_species_count(tree_original, species_parser, sep)
     out_tree_table = tree_table
     out_tree_table[,'num_leaf'] = num_leaf
     out_tree_table[,'num_species'] = num_species
@@ -69,7 +56,8 @@ get_deepest_node_num = function(tree, node_nums) {
 #' @export
 regime_table_collapse2original = function(regime_table, tree_original, tree_collapsed, node_num_mapping) {
     out_regime_table = regime_table
-    node_names_collapsed = unique(stats::na.omit(as.character(out_regime_table[['node_name']])))
+    original_names = as.character(regime_table[['node_name']])
+    node_names_collapsed = unique(stats::na.omit(original_names))
     for (node_name_collapsed in node_names_collapsed) {
         if (node_name_collapsed %in% c(tree_collapsed$tip.label, tree_collapsed$node.label)) {
             node_num_collapsed = get_node_num_by_name(tree_collapsed, node_name_collapsed)
@@ -85,7 +73,7 @@ regime_table_collapse2original = function(regime_table, tree_original, tree_coll
             if (length(node_name_original) != 1) {
                 next
             }
-            is_target = (as.character(out_regime_table[['node_name']]) == node_name_collapsed)
+            is_target = (original_names == node_name_collapsed)
             is_target[is.na(is_target)] = FALSE
             out_regime_table[is_target,'node_name'] = as.character(node_name_original)
         }

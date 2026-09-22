@@ -17,3 +17,8 @@ A long-format leaf, regime, and parameter data frame.
 \description{
 Build a leaf-level comparative-model table
 }
+\details{
+Trait names must be unique and non-blank and must not equal the
+metadata columns \code{regime}, \code{node_name}, or \code{param}. Unnamed l1ou trait
+columns are assigned \code{trait1}, \code{trait2}, and so on in input order.
+}

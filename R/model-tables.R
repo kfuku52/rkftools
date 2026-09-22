@@ -1,3 +1,32 @@
+# Shared species counting for fitted and restored model summaries.
+.model_species_count = function(tree, species_parser, sep) {
+    species_parser = .normalize_species_parser_arg(
+        value=species_parser,
+        arg_name='species_parser'
+    )
+    sep = .normalize_single_string_arg(
+        value=sep,
+        arg_name='sep',
+        allow_empty=FALSE
+    )
+    .validate_phylo_input(tree, 'model tree', unique_tips=TRUE)
+    species = .parse_species_labels(
+        tree[['tip.label']], species_parser=species_parser,
+        sep=sep, output_sep=sep, require_gene=FALSE, fallback_label=TRUE
+    )[['species_labels']]
+    length(unique(species))
+}
+
+# Metadata columns must remain addressable independently of trait values.
+.validate_model_trait_names = function(traits, context) {
+    if (!length(traits) || anyNA(traits) || any(trimws(traits) == '') ||
+            anyDuplicated(traits) || any(traits %in% c('regime', 'node_name', 'param'))) {
+        stop(context, ' trait names must be unique, non-empty, and not metadata columns ',
+            '(regime, node_name, param).')
+    }
+    invisible(TRUE)
+}
+
 
 #' Summarize a comparative-model fit
 #'
@@ -14,21 +43,8 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
         arg_name='mode',
         choices=c('l1ou', 'PhylogeneticEM')
     )
-    species_parser = .normalize_species_parser_arg(
-        value=species_parser,
-        arg_name='species_parser'
-    )
-    sep = .normalize_single_string_arg(
-        value=sep,
-        arg_name='sep',
-        allow_empty=FALSE
-    )
     model_tree = if (mode == 'l1ou') pcm_out[['tree']] else pcm_out[['phylo']]
-    .validate_phylo_input(model_tree, 'model tree', unique_tips=TRUE)
-    spp = unique(.parse_species_labels(
-        model_tree[['tip.label']], species_parser=species_parser,
-        sep=sep, output_sep=sep, require_gene=FALSE, fallback_label=TRUE
-    )[['species_labels']])
+    num_species = .model_species_count(model_tree, species_parser, sep)
     tree_table = data.frame()
     if (mode=='l1ou') {
         leaves = pcm_out$tree$tip.label
@@ -44,7 +60,7 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
             num_regime = num_regime,
             num_conv_regime = num_conv_regime,
             num_uniq_regime = num_regime - num_conv_regime,
-            num_species = length(spp),
+            num_species = num_species,
             num_leaf = length(leaves),
             model_score = pcm_out$score,
             stringsAsFactors = FALSE
@@ -55,7 +71,7 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
         colnames(df) = c('num_shift','log_likelihood','num_species','num_leaf')
         df[['num_shift']] = ncol(pp[['shifts']][['values']])
         df[['log_likelihood']] = attr(pp, 'log_likelihood')
-        df[['num_species']] = length(spp)
+        df[['num_species']] = num_species
         df[['num_leaf']] = length(pcm_out[['phylo']][['tip.label']])
         tree_table = df
     } else {
@@ -80,6 +96,10 @@ get_tree_table = function(pcm_out, mode, species_parser='legacy', sep='_') {
 
 
 #' Build a regime-level comparative-model table
+#'
+#' @details Trait names must be unique and non-blank and must not equal the
+#'   metadata columns `regime`, `node_name`, or `param`. Unnamed l1ou trait
+#'   columns are assigned `trait1`, `trait2`, and so on in input order.
 #'
 #' @param pcm_out An l1ou or PhylogeneticEM result object.
 #' @param mode Either `"l1ou"` or `"PhylogeneticEM"`.
@@ -191,6 +211,8 @@ get_leaf_regimes = function(pcm_out, mode) {
 
 
 #' Build a leaf-level comparative-model table
+#'
+#' @inherit get_regime_table details
 #'
 #' @param pcm_out An l1ou or PhylogeneticEM result object.
 #' @param mode Either `"l1ou"` or `"PhylogeneticEM"`.

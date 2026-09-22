@@ -121,3 +121,24 @@ test_that("l1ou model summaries, regimes, and parameter alignment", {
     expect_true(is.numeric(named_regimes$t2))
     expect_error(get_tree_table(pcm_mock, mode="unsupported"), "mode must be one of", fixed=TRUE)
 })
+
+test_that("unnamed multivariate l1ou traits align across output tables", {
+    tree <- fixture_trait_tree()
+    for (ntraits in 1:3) {
+        y <- matrix(seq_len(3*ntraits), 3, dimnames=list(tree$tip.label,NULL))
+        for (nshift in 0:1) {
+            fit <- list(tree=tree, Y=y, optima=y, mu=y, residuals=y,
+                shift.configuration=seq_len(nshift), nShifts=nshift,
+                shift.values=matrix(seq_len(nshift*ntraits), nshift, ntraits),
+                shift.means=matrix(seq_len(nshift*ntraits), nshift, ntraits),
+                alpha=1, sigma2=2, intercept=3, logLik=-1)
+            regimes <- get_regime_table(fit, "l1ou")
+            leaves <- get_leaf_table(fit, "l1ou")
+            expected_names <- c("regime", "node_name", "param", paste0("trait",seq_len(ntraits)))
+            expect_identical(names(regimes), expected_names)
+            expect_identical(names(leaves), expected_names)
+            expect_equal(unname(as.matrix(leaves[leaves$param == "Y", -(1:3), drop=FALSE])), unname(y))
+            if (nshift) expect_equal(as.numeric(regimes[regimes$param == "shift_value", -(1:3)]), seq_len(ntraits))
+        }
+    }
+})

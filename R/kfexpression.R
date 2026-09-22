@@ -40,8 +40,13 @@ calc_complementarity = function(array1, array2, method='weighted') {
     max_value = pmax(array1, array2)
     contribution = abs_diff[is_different] / max_value[is_different]
     if (method_name == 'weighted') {
-        total_value = sum(array1, array2)
-        weights = (array1[is_different] + array2[is_different]) / total_value
+        # A common scale cancels in the weights and prevents finite inputs
+        # from overflowing in either the pair sums or their total.
+        scale = max(max_value)
+        scaled1 = array1 / scale
+        scaled2 = array2 / scale
+        total_value = sum(scaled1, scaled2)
+        weights = (scaled1[is_different] + scaled2[is_different]) / total_value
     } else {
         weights = rep(1 / num_item, sum(is_different))
     }

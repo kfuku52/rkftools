@@ -9,7 +9,9 @@ get_placeholder_leaf(tree, original_trait_table)
 \arguments{
 \item{tree}{A \code{phylo} tree.}
 
-\item{original_trait_table}{Original traits named by tree tips.}
+\item{original_trait_table}{Original traits named by tree tips. Supplied
+trait names must be unique, non-blank, and distinct from \code{regime},
+\code{node_name}, and \code{param}.}
 }
 \value{
 A long-format placeholder leaf table.

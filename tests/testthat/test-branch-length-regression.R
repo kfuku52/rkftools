@@ -33,3 +33,23 @@ test_that("short branches and topology transformations", {
     expect_true(isTRUE(ape::is.monophyletic(tr_mixed_collapsed, c("A", "B"))))
     expect_true(!isTRUE(ape::is.monophyletic(tr_mixed_collapsed, c("C", "D"))))
 })
+
+test_that("short-edge contraction preserves individual unary edges", {
+    tree <- ape::read.tree(text="((((A:1)U:2)W:3,B:6)V:0,C:7)R;")
+    expected <- ape::read.tree(text="(((A:1)U:2)W:3,B:6,C:7)R;")
+    for (order in c("cladewise", "postorder")) {
+        input <- ape::reorder.phylo(tree, order)
+        result <- collapse_short_branches(input)
+        expect_equal(ape::write.tree(result), ape::write.tree(expected))
+        expect_equal(ape::cophenetic.phylo(result), ape::cophenetic.phylo(tree))
+        expect_identical(input, ape::reorder.phylo(tree, order))
+    }
+    # Edge identity must not depend on labels or finite, positive lengths.
+    tree$node.label[] <- "duplicate"
+    tree$edge.length[tree$edge[,2] == 1L] <- NA_real_
+    tree$edge.length[tree$edge[,2] == 7L] <- -2
+    result <- collapse_short_branches(tree)
+    expect_true(is.na(result$edge.length[result$edge[,2] == 1L]))
+    expect_equal(sort(result$edge.length, na.last=TRUE), c(-2, 3, 6, 7, NA_real_))
+    expect_true(all(result$node.label == "duplicate"))
+})

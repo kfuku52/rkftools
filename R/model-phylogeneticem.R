@@ -30,14 +30,11 @@
 }
 
 .phylogeneticem_regime_table = function(pcm_out) {
-    pp = .phylogeneticem_params_process(pcm_out)
     tree = fill_node_labels(pcm_out[['phylo']])
     .validate_phylo_input(tree, 'pcm_out$phylo', unique_tips=TRUE)
     traits = rownames(pcm_out[['Y_data']])
-    if (!length(traits) || anyNA(traits) || any(traits == '') || anyDuplicated(traits) ||
-            any(traits %in% c('regime', 'node_name', 'param'))) {
-        stop('Y_data must have unique, non-empty trait row names that are not metadata columns.')
-    }
+    .validate_model_trait_names(traits, 'Y_data')
+    pp = .phylogeneticem_params_process(pcm_out)
     edges = pp[['shifts']][['edges']]
     if (is.null(edges)) edges = integer(0)
     edges = .normalize_integerish(edges, 'shift edges',
@@ -76,9 +73,7 @@
     tree = pcm_out[['phylo']]
     .validate_phylo_input(tree, 'pcm_out$phylo', unique_tips=TRUE)
     traits = rownames(pcm_out[['Y_data']])
-    if (!length(traits) || anyNA(traits) || any(traits == '') || anyDuplicated(traits)) {
-        stop('Y_data must have unique, non-empty trait row names.')
-    }
+    .validate_model_trait_names(traits, 'Y_data')
     regimes = get_leaf_regimes(pcm_out, mode='PhylogeneticEM')[['regime']]
     rows = lapply(c('imputed', 'expectations'), function(param) {
         values = t(.phylogeneticem_imputed_traits(pcm_out,

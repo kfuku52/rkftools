@@ -37,3 +37,20 @@ test_that("species-label parsing and validation", {
     ))
     expect_true(identical(as.character(leaf2species_taxonomic_underbar), c("A_B", "A_cf_B", "Amoeba_sp_JDSRuffled")))
 })
+
+test_that("restored model species counts match species-only and gene labels", {
+    for (parser in c("legacy", "taxonomic")) {
+        labels <- if (parser == "legacy") {
+            c("Homo_sapiens", "Homo_sapiens_g1", "Mus_musculus_g1", "unparsed")
+        } else c("A_cf_B", "A_cf_B_g1", "C_D_g1", "unparsed")
+        for (sep in c("_", ".")) {
+            tree <- ape::read.tree(text="((A:1,B:1):1,(C:1,D:1):1);")
+            tree$tip.label <- gsub("_", sep, labels, fixed=TRUE)
+            fit <- list(tree=tree, shift.configuration=integer(), nShifts=0, score=0)
+            summary <- get_tree_table(fit, "l1ou", parser, sep)
+            restored <- tree_table_collapse2original(summary, tree, parser, sep)
+            expect_equal(summary$num_species, 3L)
+            expect_identical(restored, summary)
+        }
+    }
+})

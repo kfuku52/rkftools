@@ -69,3 +69,16 @@ test_that("trait filtering, replicates, and alignment", {
     expect_true(identical(colnames(rep_multi_sep), "alpha_beta"))
     expect_true(identical(get_expression_bases(rep_tbl_multi_sep, "_"), "alpha_beta"))
 })
+
+test_that("complementarity weights remain finite at extreme magnitudes", {
+    x <- c(1, 0.5, 0)
+    y <- c(0, 1, 0.25)
+    for (scale in c(1e-300, 1, 1e308)) {
+        expect_equal(calc_complementarity(x*scale, y*scale), calc_complementarity(x,y))
+    }
+    expect_equal(calc_complementarity(c(1e308,1e308), c(0,0)), 1)
+    expect_equal(calc_complementarity(c(1e308,1e308), c(1e308,0)), 1/3)
+    expect_equal(calc_complementarity(c(1e308,1e308), c(1e308,1e308)), 0)
+    expect_equal(calc_complementarity(x*1e308, y*1e308, "independent"),
+        calc_complementarity(x,y,"independent"))
+})

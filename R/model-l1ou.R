@@ -3,10 +3,11 @@
 .l1ou_regime_table = function(pcm_out) {
     mode = 'l1ou'
     if (is.null(colnames(pcm_out$Y))) {
-        cols = 'trait1'
+        cols = paste0('trait', seq_len(ncol(pcm_out$Y)))
     } else {
         cols = colnames(pcm_out$Y)
     }
+    .validate_model_trait_names(cols, 'pcm_out$Y')
     column_names = c("regime", "node_name", "param", cols)
     regime_table = data.frame(matrix(0,0,ncol(pcm_out$Y)+3))
     colnames(regime_table) = column_names
@@ -154,6 +155,7 @@
     if (is.null(trait_cols)) {
         trait_cols = paste0("trait", seq_len(ncol(pcm_out$Y)))
     }
+    .validate_model_trait_names(trait_cols, 'pcm_out$Y')
     column_names = c("regime", 'node_name', "param", trait_cols)
     leaf_table = data.frame(matrix(0,0,ncol(pcm_out$Y)+3))
     colnames(leaf_table) = column_names

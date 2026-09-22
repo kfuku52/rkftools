@@ -55,3 +55,14 @@ test_that("Rphylopars fits numeric matrices and data frames equivalently", {
     expect_true(all(is.finite(result[[1]])))
     expect_equal(matrix_result, result)
 })
+
+test_that("real PhylogeneticEM fits reject metadata names in both tables", {
+    skip_if_not_installed("PhylogeneticEM")
+    model <- readRDS(test_path("fixtures", "phyloem-fit.rds"))$models[[1]]
+    for (reserved in c("regime", "node_name", "param")) {
+        bad <- model
+        rownames(bad$Y_data)[1] <- reserved
+        expect_error(get_regime_table(bad, "PhylogeneticEM"), "trait names")
+        expect_error(get_leaf_table(bad, "PhylogeneticEM"), "trait names")
+    }
+})

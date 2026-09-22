@@ -2,7 +2,9 @@
 #' Build a placeholder leaf table
 #'
 #' @param tree A `phylo` tree.
-#' @param original_trait_table Original traits named by tree tips.
+#' @param original_trait_table Original traits named by tree tips. Supplied
+#'   trait names must be unique, non-blank, and distinct from `regime`,
+#'   `node_name`, and `param`.
 #' @return A long-format placeholder leaf table.
 #' @export
 get_placeholder_leaf = function(tree, original_trait_table) {
@@ -15,6 +17,9 @@ get_placeholder_leaf = function(tree, original_trait_table) {
     missing_tips = setdiff(tree[['tip.label']], rownames(original_trait_table))
     if (length(missing_tips)) {
         stop('original_trait_table is missing tree tip row(s): ', paste(missing_tips, collapse=', '))
+    }
+    if (!is.null(colnames(original_trait_table))) {
+        .validate_model_trait_names(colnames(original_trait_table), 'original_trait_table')
     }
     params = c('Y', 'optima', 'mu', 'residuals')
     rows = lapply(params, function(param) {
@@ -36,7 +41,8 @@ get_placeholder_leaf = function(tree, original_trait_table) {
 #' Build a placeholder regime table
 #'
 #' @param tree A `phylo` tree.
-#' @param original_trait_table Original numeric trait table.
+#' @param original_trait_table Original numeric trait table. Trait names must
+#'   be unique, non-blank, and distinct from `regime`, `node_name`, and `param`.
 #' @return A placeholder regime table.
 #' @export
 get_placeholder_regime = function(tree, original_trait_table) {
@@ -49,6 +55,7 @@ get_placeholder_regime = function(tree, original_trait_table) {
     if (is.null(trait_cols)) {
         trait_cols = paste0("trait", seq_len(ncol(original_trait_table)))
     }
+    .validate_model_trait_names(trait_cols, 'original_trait_table')
     out = do.call(rbind, lapply(params, function(param) {
         c(NA, NA, param, rep(NA, ncol(original_trait_table)))
     }))

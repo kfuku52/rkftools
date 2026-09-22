@@ -44,3 +44,16 @@ test_that("PhylogeneticEM adapters preserve trait names, types, and species coun
     expect_equal(empty[1,traits], data.frame("trait one"=0.5, b=0.5, check.names=FALSE))
     expect_equal(get_tree_table(model, "PhylogeneticEM")$num_shift, 0)
 })
+
+test_that("model and placeholder tables reject ambiguous trait names", {
+    tree <- fixture_trait_tree()
+    for (trait_names in list("regime", "node_name", "param", c("x","x"), "", NA_character_)) {
+        y <- matrix(1, 3, length(trait_names), dimnames=list(tree$tip.label, trait_names))
+        fit <- list(tree=tree, Y=y, optima=y, mu=y, residuals=y,
+            shift.configuration=integer(), nShifts=0, alpha=1, sigma2=1, intercept=0, logLik=-1)
+        expect_error(get_regime_table(fit, "l1ou"), "trait names")
+        expect_error(get_leaf_table(fit, "l1ou"), "trait names")
+        expect_error(get_placeholder_leaf(tree, y), "trait names")
+        expect_error(get_placeholder_regime(tree, y), "trait names")
+    }
+})

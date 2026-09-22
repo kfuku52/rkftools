@@ -1,3 +1,16 @@
+# rkftools 0.1.16
+
+- Preserve individual retained edge lengths when collapsing short branches in
+  unary trees, including reordered edges and missing or negative lengths.
+- Restore regime node names without cascading replacements, and use the same
+  species parsing for original and restored model summaries.
+- Name every unnamed l1ou trait column consistently. Reject duplicate, blank,
+  missing, or metadata-colliding trait names in model and placeholder tables.
+- Prevent overflow in weighted complementarity for large finite inputs by
+  scaling the weights before summation.
+- Add regressions for all six documentation-audit findings, including real
+  optional-backend checks.
+
 # rkftools 0.1.15
 
 - Clarify installation prerequisites, branch-table IDs and missing values,
