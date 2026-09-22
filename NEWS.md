@@ -1,3 +1,8 @@
+# rkftools 0.1.17
+
+- Simplify bootstrap-table control flow after mode validation, preserving
+  support values, node ordering, and input errors.
+
 # rkftools 0.1.16
 
 - Preserve individual retained edge lengths when collapsing short branches in

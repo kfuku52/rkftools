@@ -238,48 +238,42 @@ get_bootstrap_table = function(pcm_out, bootstrap_result, mode='l1ou') {
         arg_name='mode',
         choices='l1ou'
     )
-    if (mode=='l1ou') {
-        tree = fill_node_labels(pcm_out$tree)
-        node_names = c(tree$tip.label, tree$node.label)
-        nleaf = length(tree$tip.label)
-        nnode = length(tree$node.label)
-        column_names = c("node_name", "bootstrap_support")
-        bp_table = data.frame(matrix(0,length(node_names),length(column_names)))
-        colnames(bp_table) = column_names
-        bp_table["node_name"] = node_names
-        detection_rate_raw = bootstrap_result$detection.rate
-        if (is.factor(detection_rate_raw)) {
-            detection_rate_raw = as.character(detection_rate_raw)
-        }
-        detection_rate = suppressWarnings(as.numeric(detection_rate_raw))
-        invalid_numeric_idx = which(is.na(detection_rate) & !is.na(detection_rate_raw))
-        if (length(invalid_numeric_idx)) {
-            stop(
-                'bootstrap_result$detection.rate must be numeric or coercible to numeric. ',
-                'Invalid value(s): ',
-                paste(unique(as.character(detection_rate_raw[invalid_numeric_idx])), collapse=', ')
-            )
-        }
-        expected_rate_length = nleaf + nnode - 1L
-        if (length(detection_rate) != expected_rate_length) {
-            stop(
-                'Length mismatch in bootstrap_result$detection.rate: expected ',
-                expected_rate_length, ', got ', length(detection_rate), '.'
-            )
-        }
-        tail_rate = numeric(0)
-        if (length(detection_rate) > nleaf) {
-            tail_rate = detection_rate[(nleaf + 1L):length(detection_rate)]
-        }
-        bp_table["bootstrap_support"] = c(
-            detection_rate[seq_len(nleaf)],
-            NA,
-            tail_rate
-        )
-    } else {
-        cat('mode "', mode, '" is not supported.\n')
-        bp_table = data.frame(matrix(NA, 0, 2))
-        colnames(bp_table) = c("node_name", "bootstrap_support")
+    tree = fill_node_labels(pcm_out$tree)
+    node_names = c(tree$tip.label, tree$node.label)
+    nleaf = length(tree$tip.label)
+    nnode = length(tree$node.label)
+    column_names = c("node_name", "bootstrap_support")
+    bp_table = data.frame(matrix(0,length(node_names),length(column_names)))
+    colnames(bp_table) = column_names
+    bp_table["node_name"] = node_names
+    detection_rate_raw = bootstrap_result$detection.rate
+    if (is.factor(detection_rate_raw)) {
+        detection_rate_raw = as.character(detection_rate_raw)
     }
+    detection_rate = suppressWarnings(as.numeric(detection_rate_raw))
+    invalid_numeric_idx = which(is.na(detection_rate) & !is.na(detection_rate_raw))
+    if (length(invalid_numeric_idx)) {
+        stop(
+            'bootstrap_result$detection.rate must be numeric or coercible to numeric. ',
+            'Invalid value(s): ',
+            paste(unique(as.character(detection_rate_raw[invalid_numeric_idx])), collapse=', ')
+        )
+    }
+    expected_rate_length = nleaf + nnode - 1L
+    if (length(detection_rate) != expected_rate_length) {
+        stop(
+            'Length mismatch in bootstrap_result$detection.rate: expected ',
+            expected_rate_length, ', got ', length(detection_rate), '.'
+        )
+    }
+    tail_rate = numeric(0)
+    if (length(detection_rate) > nleaf) {
+        tail_rate = detection_rate[(nleaf + 1L):length(detection_rate)]
+    }
+    bp_table["bootstrap_support"] = c(
+        detection_rate[seq_len(nleaf)],
+        NA,
+        tail_rate
+    )
     return(bp_table)
 }
