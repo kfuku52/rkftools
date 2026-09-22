@@ -1,3 +1,20 @@
+test_that("MAD clamps negative input edges before unrooting combines them", {
+    tree <- ape::read.tree(text="((A:1,B:3):-10,C:2);")
+    nonnegative <- tree
+    nonnegative$edge.length[nonnegative$edge.length < 0] <- 0
+    expected <- MAD(nonnegative, "custom")
+    expect_warning(actual <- MAD(tree, "custom"), "negative branch lengths")
+    expect_equal(actual, expected)
+    expect_warning(parallel <- MAD_parallel(tree, "custom", ncpu=2L),
+        "negative branch lengths")
+    expect_equal(parallel, expected)
+    expect_equal(ape::cophenetic.phylo(actual[[3]]),
+        ape::cophenetic.phylo(nonnegative))
+    expect_equal(tree$edge.length, c(-10, 1, 3, 2))
+    tree$edge.length[c(1, 4)] <- .Machine$double.xmax
+    expect_error(MAD(tree), "Unrooting produced non-finite branch lengths", fixed=TRUE)
+})
+
 test_that("zero-distance duplicates survive every MAD output consistently", {
     for (newick in c("((A:0,B:0):1,C:2,D:3);", "((A:0,B:0):1,(C:0,D:0):2,E:3);")) {
         tree <- ape::read.tree(text=newick)

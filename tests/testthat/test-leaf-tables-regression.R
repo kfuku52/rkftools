@@ -1,3 +1,21 @@
+test_that("unnamed l1ou parameter rows retain positional tip alignment", {
+    tree <- fixture_trait_tree()
+    y <- matrix(1:6, 3, dimnames=list(tree$tip.label, c("x", "y")))
+    fit <- list(tree=tree, Y=y, shift.configuration=integer(),
+        optima=unname(y + 10), mu=unname(y + 20), residuals=unname(y + 30))
+    out <- get_leaf_table(fit, "l1ou")
+    for (param in c("optima", "mu", "residuals")) {
+        rows <- out[out$param == param,,drop=FALSE]
+        expect_identical(rows$node_name, tree$tip.label)
+        expect_equal(unname(as.matrix(rows[c("x", "y")])), fit[[param]])
+    }
+    fit$optima <- fit$optima[-1,,drop=FALSE]
+    expect_error(get_leaf_table(fit, "l1ou"), "must have 3 row(s)", fixed=TRUE)
+    fit$optima <- y
+    rownames(fit$optima) <- c("A", "A", "C")
+    expect_error(get_leaf_table(fit, "l1ou"), "Duplicate row name(s)", fixed=TRUE)
+})
+
 test_that("leaf tables, collapsed outputs, and placeholders", {
     withr::local_seed(20260831)
     tr_unlabeled = fixture_trait_tree()

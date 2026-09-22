@@ -56,7 +56,7 @@ is_same_root = function(phy1, phy2) {
             return(character(0))
         }
         signatures = vapply(children, function(cn) {
-            paste(sort(get_tip_labels(phy, cn)), collapse='\r')
+            .encode_tip_signature(get_tip_labels(phy, cn))
         }, character(1))
         sort(signatures)
     }

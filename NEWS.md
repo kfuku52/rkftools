@@ -1,3 +1,12 @@
+# rkftools 0.1.18
+
+- Clamp negative MAD input edges before unrooting combines root branches,
+  preserving adjacent positive lengths and rejecting overflow during unrooting.
+- Preserve positional tip alignment for l1ou parameter matrices without row
+  names, and check original row names before data-frame conversion repairs them.
+- Resolve nearest-tip queries independently of matching internal-node labels.
+- Compare root partitions without collisions from delimiters in tip labels.
+
 # rkftools 0.1.17
 
 - Simplify bootstrap-table control flow after mode validation, preserving

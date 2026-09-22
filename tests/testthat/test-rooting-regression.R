@@ -1,3 +1,13 @@
+test_that("root partitions distinguish labels containing signature delimiters", {
+    first <- ape::read.tree(text="((a:1,e:1):1,(d:1,b:1,c:1):1);")
+    second <- ape::read.tree(text="((a:1,b:1,e:1):1,(d:1,c:1):1);")
+    labels <- c(a="a", b="b", c="c", d="a\rb", e="b\rc")
+    first$tip.label <- unname(labels[first$tip.label])
+    second$tip.label <- unname(labels[second$tip.label])
+    expect_false(is_same_root(first, second))
+    expect_true(is_same_root(first, ape::rotate(first, get_root_num(first))))
+})
+
 test_that("MAD, root edges, and root label transfer", {
     withr::local_seed(20260831)
     tr = fixture_gene_tree()

@@ -169,13 +169,13 @@
     for (param_name in names(param2table)) {
         param_table_raw = param2table[[param_name]]
         param_col_names = colnames(param_table_raw)
+        param_row_names = rownames(param_table_raw)
         param_table = as.data.frame(param_table_raw, stringsAsFactors=FALSE)
         if (!is.null(param_col_names)) {
             colnames(param_table) = param_col_names
         } else {
             colnames(param_table) = NULL
         }
-        param_row_names = rownames(param_table)
         if (!is.null(param_row_names)) {
             if (anyDuplicated(param_row_names)) {
                 duplicated_rows = unique(param_row_names[duplicated(param_row_names)])

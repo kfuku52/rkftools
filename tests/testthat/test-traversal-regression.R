@@ -1,3 +1,12 @@
+test_that("nearest-tip lookup ignores internal labels equal to the query", {
+    tree <- fixture_trait_tree()
+    expected <- get_nearest_tips(tree, "A", c("B", "C"), ape::mrca(tree))
+    tree$node.label <- c("A", "A")
+    expect_identical(
+        get_nearest_tips(tree, "A", c("B", "C"), ape::mrca(tree)), expected
+    )
+})
+
 test_that("node lookup, traversal, and ages", {
     withr::local_seed(20260831)
     tr_unlabeled = ape::read.tree(text="((A:1,B:1):1,C:1);")

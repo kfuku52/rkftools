@@ -152,9 +152,6 @@ get_rooted_newick = function(t, madr, rho) {
         stop('Input tree tip labels must be unique for MAD.')
     }
     .validate_phylo_input(t, context='Input tree')
-    if (ape::is.rooted(t)) {
-        t = ape::unroot(t)
-    }
     if (is.null(t$edge.length)) {
         stop("Input tree has no branch lengths. MAD requires branch lengths.")
     }
@@ -168,6 +165,13 @@ get_rooted_newick = function(t, madr, rho) {
     if (any(has_negative)) {
         warning("Input tree contains negative branch lengths. They will be converted to zeros!")
         t$edge.length[has_negative] = 0
+    }
+    # Unrooting sums the two root edges, so normalize each input edge first.
+    if (ape::is.rooted(t)) {
+        t = ape::unroot(t)
+        if (any(!is.finite(t$edge.length))) {
+            stop('Unrooting produced non-finite branch lengths. MAD requires finite branch lengths.')
+        }
     }
     if (all(t$edge.length == 0)) {
         stop('Input tree has no positive branch lengths. MAD cannot root an all-zero tree.')

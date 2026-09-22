@@ -183,7 +183,8 @@ than the artificial root needed by the phylo representation.
 MAD takes a Newick string (not a filename) or a `phylo` object. It requires
 complete finite branch lengths and at least one positive branch. Negative
 lengths are converted to zero with a warning; an all-zero tree is rejected.
-Rooted inputs are unrooted before scoring.
+Negative input lengths are normalized before rooted inputs are unrooted for
+scoring, so combining root branches cannot cancel a neighboring positive edge.
 
 MAD treats zero-distance tip groups as one representative in its scoring
 objective, while preserving all tips in every returned tree. `MAD()` and

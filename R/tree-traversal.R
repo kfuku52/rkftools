@@ -305,7 +305,7 @@ get_nearest_tips = function(phy, query, subjects, mrca_matrix) {
             paste(missing_subjects, collapse=', ')
         )
     }
-    query_num = get_node_num_by_name(phy, query)
+    query_num = which(phy[['tip.label']] == query)
     if (length(query_num) != 1) {
         stop('query must map to exactly one node in phy: ', query)
     }
