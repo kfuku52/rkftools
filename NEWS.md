@@ -1,3 +1,8 @@
+# rkftools 0.1.19
+
+- Update the CI dependency-setup action to retain the pak library environment
+  on Ubuntu runners using sudo-rs, preserving the existing R and benchmark matrix.
+
 # rkftools 0.1.18
 
 - Clamp negative MAD input edges before unrooting combines root branches,
