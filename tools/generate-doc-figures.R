@@ -122,50 +122,5 @@ render_png("man/figures/table2phylo_roundtrip.png", 2400, 1500, function() {
 })
 
 render_png("man/figures/root_position_species_overlap.png", 2400, 1400, function() {
-    tree <- examples$gene_tree
-    scores <- examples$root_scores
-    stopifnot(!ape::is.rooted(tree), length(scores) == nrow(tree$edge),
-        all(is.finite(scores)))
-    optimal <- which(scores == min(scores))
-    graphics::layout(matrix(1:2, nrow=1), widths=c(1.35, 1))
-    graphics::par(oma=c(3, 0, 4, 0), mar=c(3, 1, 4, 1), col=ink,
-        col.axis=ink, col.lab=ink, col.main=ink, family="sans")
-    ape::plot.phylo(tree, type="unrooted", use.edge.length=FALSE,
-        lab4ut="horizontal", cex=0.85, edge.width=2, edge.color=ink,
-        tip.color=ink, font=3, underscore=TRUE)
-
-    # ape may reorder edges for plotting. Map each drawn edge back to the
-    # scored object's row instead of assuming the two orders are identical.
-    plotted <- get("last_plot.phylo", envir=get(".PlotPhyloEnv", asNamespace("ape")))
-    edge_key <- function(edge) paste(edge[,1], edge[,2], sep="/")
-    indices <- match(edge_key(plotted$edge), edge_key(tree$edge))
-    stopifnot(!anyNA(indices), !anyDuplicated(indices))
-    best_edges <- plotted$edge[indices %in% optimal,,drop=FALSE]
-    graphics::segments(plotted$xx[best_edges[,1]], plotted$yy[best_edges[,1]],
-        plotted$xx[best_edges[,2]], plotted$yy[best_edges[,2]], col=green, lwd=5)
-    ape::edgelabels(text=indices, frame="circle", cex=0.75, font=2,
-        bg=ifelse(indices %in% optimal, green, "white"),
-        col=ifelse(indices %in% optimal, "white", ink))
-    graphics::title("Unrooted candidate edges", line=2, cex.main=1.1)
-    graphics::mtext("Edge indices in gene_tree$edge; topology only", line=0.6,
-        cex=0.75, col=muted)
-    graphics::legend("bottom", legend="Minimum-score candidate", pch=21,
-        pt.bg=green, col=green, bty="n", cex=0.8, inset=-0.08, xpd=TRUE)
-
-    graphics::par(mar=c(5, 4, 4, 2))
-    positions <- graphics::barplot(scores, names.arg=seq_along(scores),
-        col=ifelse(seq_along(scores) %in% optimal, green, blue), border=NA,
-        ylim=c(0, max(scores) + 0.7), las=1, cex.names=0.85,
-        xlab="Edge index in gene_tree$edge", ylab="Species-overlap score")
-    graphics::abline(h=min(scores), lty=2, col=green, lwd=1.5)
-    graphics::text(positions, scores + 0.14, labels=format(scores, trim=TRUE),
-        cex=0.85, col=ink)
-    graphics::title("Root-position scores", line=2, cex.main=1.1)
-    graphics::mtext("Lower scores indicate less species overlap", line=0.6,
-        cex=0.75, col=muted)
-    graphics::mtext("Species overlap across candidate roots", outer=TRUE,
-        line=2, cex=1.5, font=2, col=ink)
-    graphics::mtext(sprintf("Same unrooted tree and scores as docs/usage.md; minimum score %s at edge %s.",
-        min(scores), paste(optimal, collapse=", ")), side=1, outer=TRUE,
-        line=1, cex=0.85, col=muted)
+    plot_root_position_species_overlap(examples$gene_tree)
 })

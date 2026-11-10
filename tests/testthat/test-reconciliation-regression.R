@@ -9,12 +9,7 @@ test_that("species-overlap reference scores and parser modes", {
     dup_score_root = get_duplication_confidence_score(tr, get_root_num(tr))
     expect_true(isTRUE(all.equal(as.numeric(dup_score_root), 1 / 3, tolerance=1e-10)))
 
-    tr_vertebrate_duplication = ape::read.tree(text=paste0(
-        "(((Homo_sapiens_geneA:0.12,Mus_musculus_geneA:0.12):0.18,",
-        "(Danio_rerio_geneA:0.16,Oryzias_latipes_geneA:0.16):0.14):0.25,",
-        "((Homo_sapiens_geneB:0.11,Mus_musculus_geneB:0.11):0.19,",
-        "(Danio_rerio_geneB:0.15,Oryzias_latipes_geneB:0.15):0.15):0.25);"
-    ))
+    tr_vertebrate_duplication = species_overlap_example_tree
     vertebrate_species = get_species_names(tr_vertebrate_duplication)
     expect_true(setequal(
         unique(as.character(vertebrate_species)),

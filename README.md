@@ -1,6 +1,6 @@
 # Overview
 [![R-CMD-check](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml/badge.svg)](https://github.com/kfuku52/rkftools/actions/workflows/r-cmd-check.yaml)
-[![Version](https://img.shields.io/badge/version-0.1.19-informational)](https://github.com/kfuku52/rkftools)
+[![Version](https://img.shields.io/badge/version-0.1.20-informational)](https://github.com/kfuku52/rkftools)
 [![R](https://img.shields.io/badge/R-%3E%3D%204.1.0-276DC3?logo=r)](https://www.r-project.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.md)
 [![Last commit](https://img.shields.io/github/last-commit/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/commits/master)
@@ -10,6 +10,26 @@
 [![GitHub forks](https://img.shields.io/github/forks/kfuku52/rkftools)](https://github.com/kfuku52/rkftools/network/members)
 
 This R package contains various tools to handle data in evolutionary biology.
+
+## Comparing candidate roots by species overlap
+
+`plot_root_position_species_overlap()` draws a gene tree alongside the
+species-overlap score for each candidate root. The bundled example highlights
+branch 7, which has the lowest score.
+
+![Unrooted gene tree and species-overlap scores, with branch 7 highlighted in both panels](man/figures/root_position_species_overlap.png)
+
+```r
+library(rkftools)
+
+gene_tree <- ape::unroot(species_overlap_example_tree)
+png("root_position_species_overlap.png", width = 2400, height = 1400,
+    res = 160, pointsize = 14)
+plot_root_position_species_overlap(gene_tree)
+dev.off()
+```
+
+[See how edge indices and scores are related](docs/usage.md#score-candidate-root-positions-by-species-overlap).
 
 # Dependency
 Required:

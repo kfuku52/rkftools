@@ -64,6 +64,12 @@ test_that("species overlap uses maximum pairwise child overlap", {
         get_root_position_dependent_species_overlap_scores(star),
         rep(1, nrow(star$edge))
     )
+
+    star$tip.label[3] <- "A_sp_g3"
+    expect_equal(
+        get_root_position_dependent_species_overlap_scores(star),
+        ifelse(star$edge[,2] <= 3L, 2, 1)
+    )
 })
 
 test_that("root and node mapping support multifurcations", {

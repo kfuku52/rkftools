@@ -60,28 +60,19 @@ Use an explicit output path for each result you want to retain.
 ```r
 library(rkftools)
 
-gene_tree = ape::read.tree(text=paste0(
-    "(((Homo_sapiens_geneA:0.12,Mus_musculus_geneA:0.12):0.18,",
-    "(Danio_rerio_geneA:0.16,Oryzias_latipes_geneA:0.16):0.14):0.25,",
-    "((Homo_sapiens_geneB:0.11,Mus_musculus_geneB:0.11):0.19,",
-    "(Danio_rerio_geneB:0.15,Oryzias_latipes_geneB:0.15):0.15):0.25);"
-))
-
 # Edge indices in the figure refer to this unrooted object.
-gene_tree = ape::unroot(gene_tree)
-root_scores = get_root_position_dependent_species_overlap_scores(
-    gene_tree,
-    nslots=1
-)
+gene_tree = ape::unroot(species_overlap_example_tree)
+root_scores = get_root_position_dependent_species_overlap_scores(gene_tree)
 which(root_scores == min(root_scores)) # 7
 ```
 
 Each score corresponds to the same row of `gene_tree$edge`. The example and
 figure both use the unrooted tree's 13 edges; the minimum-score candidate is
 edge 7. Scoring the original rooted tree instead gives 14 edges and minimum
-indices 1 and 8. Unrooting changes the edge indices, so keep the scored tree
-and the tree used for plotting together. The left diagram shows topology;
-branch lengths are not to scale.
+indices 1 and 8. Unrooting changes the edge indices. Pass the same tree to
+`plot_root_position_species_overlap(gene_tree)` to draw the topology and the
+corresponding scores on the active graphics device.
+[The README example saves the plot as a PNG](../README.md#comparing-candidate-roots-by-species-overlap).
 
 ![root-position species-overlap score example](../man/figures/root_position_species_overlap.png)
 

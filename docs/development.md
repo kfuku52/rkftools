@@ -41,8 +41,9 @@ errors in those checks, not silent skips.
 `make document` regenerates the Rd files with roxygen2, with Markdown enabled
 in DESCRIPTION so inline code and function references render as R help.
 `make figures` executes the R examples in `docs/usage.md` and regenerates both
-figures in `man/figures/`. It uses the actual tree labels, edge rows, branch
-table, and computed scores, so figure values are not maintained separately.
+figures in `man/figures/`. The root-scoring figure calls
+`plot_root_position_species_overlap()` on the bundled example tree used in the
+guide. Both figures use the actual example objects and computed results.
 Regenerate and visually inspect the figures after changing the examples or
 tree conversion/scoring code. No plotting packages beyond base R and the
 existing runtime dependencies are needed.

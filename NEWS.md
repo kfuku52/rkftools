@@ -1,3 +1,9 @@
+# rkftools 0.1.20
+
+- Add `plot_root_position_species_overlap()` and a bundled example gene tree.
+- Speed up candidate-root scoring by counting species shared among neighboring
+  clades without comparing every pair of clades.
+
 # rkftools 0.1.19
 
 - Update the CI dependency-setup action to retain the pak library environment

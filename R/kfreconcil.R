@@ -214,7 +214,7 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
     )
 }
 
-.directed_species_overlap_scores = function(phy, species_ids, dc_cutoff=0) {
+.directed_species_overlap_scores = function(phy, species_ids) {
     root_num = get_root_num(phy)
     root_children = get_children_num(phy, root_num)
     if (length(root_num) != 1L || length(root_children) < 2L) {
@@ -269,18 +269,13 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
     component_scores = new.env(parent=emptyenv(), hash=TRUE)
     local_overlap_by_excluded_neighbor = new.env(parent=emptyenv(), hash=TRUE)
 
-    overlap_indicator = function(child_species) {
-        score = .max_pairwise_species_overlap(child_species)
-        if (is.na(score)) 0L else as.integer(score > dc_cutoff)
-    }
-
     build_species_message = function(from, to) {
         key = paste0(from, '>', to)
-        next_nodes = setdiff(adjacency[[as.character(to)]], from)
-        next_keys = paste0(to, '>', next_nodes)
         if (to <= length(species_ids)) {
             species = species_ids[[to]]
         } else {
+            neighbors = adjacency[[as.character(to)]]
+            next_keys = paste0(to, '>', neighbors[neighbors != from])
             if (any(!vapply(next_keys, exists, logical(1),
                     envir=component_species, inherits=FALSE))) {
                 stop('Invalid species traversal state in root-position scoring.')
@@ -294,10 +289,7 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
         invisible(NULL)
     }
 
-    # Species sets do not depend on overlap scores, so calculate every directed
-    # species message before scoring nodes. This permits each node's qualifying
-    # child pairs to be counted once rather than recomputed for every excluded
-    # neighbor.
+    # Collect the species sets on both sides of every edge before scoring.
     for (to in rev(traversal_order[-1L])) {
         build_species_message(parent_by_node[[to]], to)
     }
@@ -311,6 +303,7 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
         }
     }
 
+    num_species = max(species_ids)
     internal_nodes = nodes[nodes > length(species_ids)]
     for (node in internal_nodes) {
         neighbors = adjacency[[as.character(node)]]
@@ -319,27 +312,14 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
             envir=component_species,
             inherits=FALSE
         )
-        num_qualifying_pairs = 0L
-        incident_qualifying_pairs = integer(length(neighbors))
-        if (length(neighbors) >= 2L) {
-            for (first_index in seq_len(length(neighbors) - 1L)) {
-                for (second_index in seq.int(first_index + 1L, length(neighbors))) {
-                    if (.species_jaccard(
-                            neighbor_species[[first_index]],
-                            neighbor_species[[second_index]]
-                        ) > dc_cutoff) {
-                        num_qualifying_pairs = num_qualifying_pairs + 1L
-                        incident_qualifying_pairs[[first_index]] =
-                            incident_qualifying_pairs[[first_index]] + 1L
-                        incident_qualifying_pairs[[second_index]] =
-                            incident_qualifying_pairs[[second_index]] + 1L
-                    }
-                }
-            }
-        }
-        excluded_indicators = as.integer(
-            num_qualifying_pairs - incident_qualifying_pairs > 0L
-        )
+        # A species overlaps when it occurs in at least two neighbor sets.
+        # Excluding one neighbor can only remove overlaps of species found
+        # in that neighbor and exactly one other.
+        species_counts = tabulate(unlist(neighbor_species, use.names=FALSE), nbins=num_species)
+        num_shared_species = sum(species_counts > 1L)
+        excluded_indicators = vapply(neighbor_species, function(species) {
+            sum(species_counts[species] == 2L) < num_shared_species
+        }, logical(1))
         for (neighbor_index in seq_along(neighbors)) {
             assign(
                 paste0(neighbors[[neighbor_index]], '>', node),
@@ -354,8 +334,8 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
         if (to <= length(species_ids)) {
             score = 0
         } else {
-            next_nodes = setdiff(adjacency[[as.character(to)]], from)
-            next_keys = paste0(to, '>', next_nodes)
+            neighbors = adjacency[[as.character(to)]]
+            next_keys = paste0(to, '>', neighbors[neighbors != from])
             if (any(!vapply(next_keys, exists, logical(1),
                     envir=component_scores, inherits=FALSE))) {
                 stop('Invalid score traversal state in root-position scoring.')
@@ -389,12 +369,11 @@ get_species_overlap_score = function(phy, dc_cutoff=0, species_parser='legacy', 
     score_unrooted_edge = function(node1, node2) {
         key12 = paste0(node1, '>', node2)
         key21 = paste0(node2, '>', node1)
+        species12 = get(key12, envir=component_species, inherits=FALSE)
+        species21 = get(key21, envir=component_species, inherits=FALSE)
         get(key12, envir=component_scores, inherits=FALSE) +
             get(key21, envir=component_scores, inherits=FALSE) +
-            overlap_indicator(list(
-                get(key12, envir=component_species, inherits=FALSE),
-                get(key21, envir=component_species, inherits=FALSE)
-            ))
+            any(species12 %in% species21)
     }
 
     vapply(seq_len(nrow(original_edges)), function(edge_index) {
@@ -465,8 +444,7 @@ get_root_position_dependent_species_overlap_scores = function(
     ))
     .directed_species_overlap_scores(
         phy=phy,
-        species_ids=species_ids,
-        dc_cutoff=0
+        species_ids=species_ids
     )
 }
 
